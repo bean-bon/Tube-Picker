@@ -24,16 +24,23 @@ struct Departure: View, Hashable, Comparable {
         
         HStack {
             VStack(alignment: .leading) {
-                
-                (Text(predictedArrival.lineName)
-                    .font(.headline)
-                 + Text(platformDisplay.contains("Unknown") ? "" : " - " + platformDisplay)
-                    .font(.subheadline))
-                .fixedSize()
-                
+                HStack {
+                    Rectangle()
+                        .fill(Line.lookupColour(lineName: predictedArrival.lineName) ?? Color.white)
+                        .frame(width: 25, height: 10)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(.white, lineWidth: 1)
+                        )
+                    (Text(predictedArrival.lineName)
+                        .font(.headline)
+                     + Text(platformDisplay.contains("Unknown") ? "" : " - " + platformDisplay)
+                        .font(.subheadline))
+                    .fixedSize()
+                }
                 Text(predictedArrival.getReadableDestinationName() ?? "Check Station Board")
                     .fixedSize()
-
             }
                         
             let arrivalSeconds = predictedArrival.timeToStation

@@ -30,8 +30,7 @@ struct ContentView: View {
                         NavigationLink(line.name) {
                             List(groups[line]!.mappedUnique { $0.getReadableName() }.sorted(), id: \.self) { station in
                                 NavigationLink(station.getReadableName(), destination: DepartureBoard(station: station))
-                            }
-                            .navigationTitle(line.name)
+                            }.navigationBarTitle(line.name)
                         }
                         .onAppear {
                             updateRandomStation()
@@ -65,9 +64,11 @@ struct ContentView: View {
     }
     
     var searchResults: [Station] {
-        return stationData.allStations().filter { station in
-            station.getReadableName().uppercased().contains($searchString.wrappedValue.uppercased())
-        }.unique()
+        return stationData.allStations().mappedUnique {
+            $0.getReadableName().uppercased()
+        }.filter { station in
+            station.getReadableName().uppercased().contains(searchString.uppercased())
+        }
     }
     
     func updateRandomStation() -> Void {
