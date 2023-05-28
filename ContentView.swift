@@ -56,8 +56,10 @@ struct ContentView: View {
         }
         .task {
             if stationData.needsLoad() {
-                await stationData.loadData()
+                await stationData.loadStationData()
             }
+            await stationData.loadStopPointData()
+            print("done")
         }
         .searchable(text: $searchString)
                 

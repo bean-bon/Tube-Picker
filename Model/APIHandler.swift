@@ -9,21 +9,6 @@ import Foundation
 
 class APIHandler {
     
-    /**
-     Assuming the data has been retrieved, this function decodes recieved payloads.
-     */
-    private func decode<T: Decodable>(data: Data) -> T {
-            
-        do {
-            let decoder = JSONDecoder()
-            //debugPrint(String(decoding: data, as: UTF8.self))
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            fatalError("Couldn't parse \(T.self): \n\(error)")
-        }
-        
-    }
-    
     func lineArrivals(line: String) async -> [LineArrival] {
         
         let url = "https://api.tfl.gov.uk/line/\(line)/arrivals"
@@ -32,7 +17,7 @@ class APIHandler {
                 
         do {
             let data = try lookup.get()
-            return decode(data: data)
+            return DataManager.decodeJson(data: data)
         }
         catch {
             print("Unexpected error retrieving line arrivals.")
@@ -56,20 +41,40 @@ class APIHandler {
         if mode == Line.Mode.overground.rawValue {
             url = "https://api.tfl.gov.uk/Mode/overground/Arrivals?count=10"
         }
-        
-        print("Using mode \(mode) with url: \(url)")
-        
+                
         let lookup = await genericJsonLookup(url: url)
         
         do {
             let data = try lookup.get()
-            return decode(data: data)
+            return DataManager.decodeJson(data: data)
         }
         catch {
             print("Unexpected error retrieving predicted arrivals.")
         }
         
         return [PredictedArrival]()
+        
+    }
+    
+    /**
+     Given a mode, return the corresponding StopPoints. For this purpose, using those
+     */
+    func stopPoints(mode: StopPointMetaData.modeName) async -> Array<StopPoint> {
+        
+        let modeDescription = StopPointMetaData.modeNameDescription(mode: mode)
+        
+        let url = "https://api.tfl.gov.uk/StopPoint/Mode/\(modeDescription)"
+        let lookup = await genericJsonLookup(url: url)
+        
+        do {
+            let data = try lookup.get()
+            let intermediateResponse: StopPointRawResponse = DataManager.decodeJson(data: data)
+            return intermediateResponse.stopPoints
+        } catch {
+            print("Unexpected error thrown while retreiving StopPoints for mode: \(mode)")
+        }
+        
+        return []
         
     }
     
