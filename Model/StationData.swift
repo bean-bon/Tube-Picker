@@ -16,15 +16,43 @@ import SwiftUI
 final class StationData: ObservableObject {
     
     private let apiHandler = APIHandler()
-    private var allStationCache: Set<Station> = Set()
     private var stopPointCache: Array<StopPoint> = Array()
-    @Published var stationGroups: [Line: Set<Station>] = Dictionary()
+    @Published var allStations: [Station] = []
+    @Published var groupedStations: [StopPointMetaData.modeName: Set<Station>] = Dictionary()
     
-    func loadStationData() async {
-        for line in LineIDs {
-            let arrivals = await apiHandler.lineArrivals(line: line.key)
-            DispatchQueue.main.async {
-                self.parseLineArrivals(data: arrivals)
+    func loadData() async {
+        if !needsLoad() {
+            return
+        }
+        await loadStopPointData()
+        DispatchQueue.main.async {
+            self.updateStationVariables()
+        }
+    }
+    
+    func stationGroupKeys() -> [StopPointMetaData.modeName] {
+        return Array(groupedStations.keys)
+    }
+    
+    private func updateStationVariables() {
+        stopPointCache.filter {
+            $0.commonName.contains("Station")
+        }.forEach { stopPoint in
+            stopPoint.modes.forEach { mode in
+                let computedMode: StopPointMetaData.modeName = {
+                    return mode == "elizabeth-line"
+                    ? StopPointMetaData.modeName.elizabeth
+                    : StopPointMetaData.modeName.init(rawValue: mode) ?? StopPointMetaData.modeName.tube
+                }()
+                allStations.insert(Station(name: stopPoint.commonName, mode: computedMode, naptanID: stopPoint.stationNaptan), at: 0)
+            }
+        }
+        allStations.forEach { station in
+            let current = groupedStations[station.mode]
+            if current == nil {
+                groupedStations[station.mode] = [station]
+            } else {
+                groupedStations[station.mode]!.formUnion([station])
             }
         }
     }
@@ -33,10 +61,10 @@ final class StationData: ObservableObject {
      Load the StopPoint data either from the TfL API or the local cache (depending on if it exists or not and it's last update).
      The data will be redownloaded if the last cache update was more than 24 hours ago.
      */
-    func loadStopPointData() async {
+    private func loadStopPointData() async {
         
         let stopPointFilePath: URL = StopPointMetaData.cachePath
-        var cacheFileModificationDate: Date? = getStopPointCacheModificationDate(filePath: stopPointFilePath)
+        let cacheFileModificationDate: Date? = getStopPointCacheModificationDate(filePath: stopPointFilePath)
                 
         let daySeconds: Double = 60 * 60 * 24
         if  cacheFileModificationDate == nil || !cacheFileModificationDate!.timeIntervalSinceNow.isLess(than: daySeconds) {
@@ -71,28 +99,8 @@ final class StationData: ObservableObject {
         }
     }
     
-    func allStations() -> Set<Station> {
-        if stationGroups.isEmpty && allStationCache.isEmpty {
-            return Set()
-        }
-        if allStationCache.isEmpty {
-            for group in stationGroups {
-                allStationCache = allStationCache.union(group.value)
-            }
-        }
-        return allStationCache
-    }
-    
-    func needsLoad() -> Bool {
-        return stationGroups.isEmpty
-    }
-    
-    func lookupMode(stationName: String) -> Line.Mode {
-        for stations in stationGroups.values {
-            let searchResult = stations.first(where: { $0.name == stationName })
-            if searchResult != nil { return searchResult!.mode }
-        }
-        return Line.Mode.tube
+    private func needsLoad() -> Bool {
+        return allStations.isEmpty
     }
     
     private func parseStopPoints(data: [StopPoint]) -> [StopPointMetaData.modeName: Set<StopPoint>] {
@@ -104,20 +112,6 @@ final class StationData: ObservableObject {
             }
         }
         return stopPointsByModeName
-    }
-    
-    private func parseLineArrivals(data: [LineArrival]) {
-        if data.isEmpty { return }
-        var stations = Set<Station>()
-        for arrival in data {
-            // Exception for london-overground since this isn't a valid variable name.
-            if arrival.lineId == "london-overground" {
-                stations.insert(Station(name: arrival.stationName, mode: Line.Mode.overground))
-            } else {
-                stations.insert(Station(name: arrival.stationName, mode: Line.Mode.init(rawValue: arrival.lineId) ?? Line.Mode.tube))
-            }
-        }
-        stationGroups.updateValue(stations, forKey: LineIDs[data[0].lineId] ?? LineIDs.first!.value)
     }
     
 }

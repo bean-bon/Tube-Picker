@@ -16,6 +16,7 @@ struct StopPoint: Hashable, Comparable, Codable {
     let modes: [String]
     let commonName: String
     let indicator: String?
+    let stationNaptan: String?
     let lat: Double
     let lon: Double
     
@@ -43,13 +44,23 @@ class StopPointMetaData {
         case overground
     }
     
-    static func modeNameDescription(mode: modeName) -> String {
+    static func modeNameAPIFormat(mode: modeName) -> String {
         switch mode {
         case .all: return "tube,dlr,elizabeth-line,overground"
         case .tube: return "tube"
         case .dlr: return "dlr"
         case .elizabeth: return "elizabeth-line"
         case .overground: return "overground"
+        }
+    }
+    
+    static func modeNameDescription(mode: modeName) -> String {
+        switch mode {
+        case .all: return "All Modes"
+        case .tube: return "London Underground"
+        case .dlr: return "Docklands Light Railway"
+        case .elizabeth: return "Elizabeth line"
+        case .overground: return "London Overground"
         }
     }
     
