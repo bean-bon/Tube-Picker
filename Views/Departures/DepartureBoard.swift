@@ -12,7 +12,6 @@ struct DepartureBoard: View {
     let api = APIHandler()
     
     var station: Station
-    var overrideMode: Line.Mode?
     
     private static let defaultLineFilter: String = "All Lines"
     private static let defaultDestinationFilter: String = "Any Destination"
@@ -34,7 +33,7 @@ struct DepartureBoard: View {
                     .progressViewStyle(CircularProgressViewStyle())
             } else {
                 if filteredDepartures.isEmpty {
-                    Text("No Departures Found")
+                    Text("No Arrivals Found")
                 } else {
                     List(filteredDepartures.sorted(), id: \.self) { departure in
                         departure
@@ -55,26 +54,38 @@ struct DepartureBoard: View {
             let linePickerOptions: [String] = [DepartureBoard.defaultLineFilter] + lines.sorted()
             let destinationPickerOptions: [String] = [DepartureBoard.defaultDestinationFilter] + destinations.sorted()
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Picker ("Lines", selection: $selectedLine) {
-                    ForEach(linePickerOptions.sorted(), id: \.self) { line in
-                        Text(line)
+                if linePickerOptions.count > 2 {
+                    Picker ("Lines", selection: $selectedLine) {
+                        ForEach(linePickerOptions.sorted(), id: \.self) { line in
+                            Text(line)
+                        }
+                    }.onChange(of: selectedLine) { _ in
+                        selectedDestination = DepartureBoard.defaultDestinationFilter
+                        updateFilteredArrivals()
+                        updateDestinations()
                     }
-                }.onChange(of: selectedLine) { _ in
-                    selectedDestination = DepartureBoard.defaultDestinationFilter
-                    updateFilteredArrivals()
-                    updateDestinations()
                 }
-                Picker("Destination", selection: $selectedDestination) {
-                    ForEach(destinationPickerOptions, id: \.self) { destination in
-                        Text(destination)
-                    }
-                }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                if destinationPickerOptions.count > 2 {
+                    Picker("Destination", selection: $selectedDestination) {
+                        ForEach(destinationPickerOptions, id: \.self) { destination in
+                            Text(destination)
+                        }
+                    }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                }
             }
         }
     }
     
     func reload() async {
-        let data = await api.predictedArrivals(mode: overrideMode?.rawValue ?? station.mode.rawValue, count: 10)
+        if station.naptanID == nil {
+            await reloadWithGlobalDepartureLookup()
+        } else {
+            await reloadWithNaptanID()
+        }
+    }
+    
+    private func reloadWithGlobalDepartureLookup() async {
+        let data = await api.predictedArrivals(mode: station.mode, count: 10)
         departures = data.filter {
             station.name == $0.stationName && $0.timeToStation < 3600
         }
@@ -82,6 +93,19 @@ struct DepartureBoard: View {
             Departure(predictedArrival: $0)
         }
         lines = departures.map { $0.predictedArrival.lineName }.unique()
+        updateFilteredArrivals()
+        updateDestinations()
+    }
+    
+    private func reloadWithNaptanID() async {
+        let data = await api.naptanStationArrivals(naptanID: station.naptanID ?? "")
+        let intermediateDepartures = data.filter {
+            $0.timeToStation < 3600
+        }.map {
+            Departure(predictedArrival: $0)
+        }
+        let sliceSize = intermediateDepartures.count > 10 ? 10 : intermediateDepartures.count
+        departures = Array(intermediateDepartures[..<sliceSize])
         updateFilteredArrivals()
         updateDestinations()
     }

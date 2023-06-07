@@ -13,57 +13,142 @@ import SwiftUI
  This seems flaky as it wouldn't show stations with no departures, but it's not a huge issue at
  the moment.
  */
+@MainActor
 final class StationData: ObservableObject {
     
+    @Published var allStations: [Station] = []
+    // Second dictionary groups by NaptanID.
+    @Published var groupedStations: [StopPointMetaData.modeName: [String: Station]] = Dictionary()
+    @Published private var loadingState: AsyncLoadingState = .empty
+    
     private let apiHandler = APIHandler()
-    private var allStationCache: Set<Station> = Set()
-    @Published var stationGroups: [Line: Set<Station>] = Dictionary()
+    private var stopPointCache: Array<StopPoint> = Array()
     
     func loadData() async {
-        for line in LineIDs {
-            let arrivals = await apiHandler.lineArrivals(line: line.key)
-            DispatchQueue.main.async {
-                self.parseLineArrivals(data: arrivals)
+        if !needsLoad() {
+            return
+        }
+        await loadStopPointData()
+        updateStationVariables()
+        loadingState = self.allStations.isEmpty ? .failure : .success
+    }
+    
+    func getLoadingState() -> AsyncLoadingState {
+        return loadingState
+    }
+    
+    func stationGroupKeys() -> [StopPointMetaData.modeName] {
+        return Array(groupedStations.keys)
+    }
+
+    private func updateStationVariables() {
+        parseStationStopPoints()
+        groupStationsFromAll()
+    }
+    
+    private func parseStationStopPoints() {
+        stopPointCache.filter {
+            $0.commonName.contains("Station")
+        }.forEach { stopPoint in
+            stopPoint.modes.forEach { mode in
+                var computedMode: StopPointMetaData.modeName? {
+                    return mode == "elizabeth-line"
+                    ? StopPointMetaData.modeName.elizabeth
+                    : StopPointMetaData.modeName.init(rawValue: mode)
+                }
+                if computedMode != nil {
+                    allStations += [Station(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), mode: computedMode!, naptanID: stopPoint.stationNaptan)]
+                }
             }
         }
     }
     
-    func allStations() -> Set<Station> {
-        if stationGroups.isEmpty && allStationCache.isEmpty {
-            return Set()
-        }
-        if allStationCache.isEmpty {
-            for group in stationGroups {
-                allStationCache = allStationCache.union(group.value)
+    private func groupStationsFromAll() {
+        StopPointMetaData.modeName.allCases.forEach { mode in
+            allStations.filter {
+                $0.mode == mode && $0.naptanID != nil
+            }.forEach { station in
+                if groupedStations[mode] == nil {
+                    groupedStations[mode] = Dictionary()
+                }
+                if groupedStations[mode]![station.naptanID!] == nil {
+                    groupedStations[mode]![station.naptanID!] = station
+                }
             }
         }
-        return allStationCache
     }
     
-    func needsLoad() -> Bool {
-        return stationGroups.isEmpty
-    }
-    
-    func lookupMode(stationName: String) -> Line.Mode {
-        for stations in stationGroups.values {
-            let searchResult = stations.first(where: { $0.name == stationName })
-            if searchResult != nil { return searchResult!.mode }
-        }
-        return Line.Mode.tube
-    }
-    
-    private func parseLineArrivals(data: [LineArrival]) {
-        if data.isEmpty { return }
-        var stations = Set<Station>()
-        for arrival in data {
-            // Exception for london-overground since this isn't a valid variable name.
-            if arrival.lineId == "london-overground" {
-                stations.insert(Station(name: arrival.stationName, mode: Line.Mode.overground))
-            } else {
-                stations.insert(Station(name: arrival.stationName, mode: Line.Mode.init(rawValue: arrival.lineId) ?? Line.Mode.tube))
+    /**
+     Load the StopPoint data either from the TfL API or the local cache (depending on if it exists or not and it's last update).
+     The data will be redownloaded if the last cache update was more than 24 hours ago.
+     */
+    private func loadStopPointData() async {
+        
+        let stopPointFilePath: URL = StopPointMetaData.cachePath
+        let cacheFileModificationDate: Date? = getStopPointCacheModificationDate(filePath: stopPointFilePath)
+                
+        let daySeconds: Double = 60 * 60 * 24
+        if  cacheFileModificationDate == nil || !cacheFileModificationDate!.timeIntervalSinceNow.isLess(than: daySeconds) {
+            await downloadAndSaveStopPoints(filePath: stopPointFilePath)
+        } else {
+            do {
+                let contents = try Data(contentsOf: stopPointFilePath)
+                stopPointCache = DataManager.decodeJson(data: contents) ?? []
+                var attempts = 0
+                while stopPointCache.isEmpty && attempts < 5 {
+                    debugPrint("Attempt \(attempts + 1)/5 to redownload StopPoint data...")
+                    await downloadAndSaveStopPoints(filePath: stopPointFilePath)
+                    attempts += 1
+                }
+            } catch {
+                debugPrint("Failed to parse StopPoint cache data, falling back on API download.")
+                await downloadAndSaveStopPoints(filePath: stopPointFilePath)
             }
         }
-        stationGroups.updateValue(stations, forKey: LineIDs[data[0].lineId] ?? LineIDs.first!.value)
+        
+    }
+    
+    private func downloadAndSaveStopPoints(filePath: URL) async {
+        loadingState = .downloading
+        for line in Line.lineMap {
+            stopPointCache.append(contentsOf: await apiHandler.stopPointsByLineID(line: line.value))
+        }
+        loadingState = stopPointCache.isEmpty ? .failure : .success
+        if loadingState == .success {
+            DataManager.saveAsJsonRepresentation(path: filePath, data: stopPointCache)
+        }
+    }
+    
+    /**
+     To avoid downloading all StopPoints every time the app is accessed, only refresh the cache
+     once per 24 hours. Return nil if the file was just created, otherwise the modification date.
+     */
+    private func getStopPointCacheModificationDate(filePath: URL) -> Date? {
+        do {
+            if !FileManager.default.fileExists(atPath: filePath.path) {
+                FileManager.default.createFile(atPath: filePath.path, contents: nil)
+                return nil
+            }
+            let cacheAttributes = try FileManager().attributesOfItem(atPath: filePath.path)
+            return cacheAttributes[FileAttributeKey.modificationDate] as? Date
+        } catch {
+            fatalError("Could not parse StopPoint cache file: \(error).")
+        }
+    }
+    
+    private func needsLoad() -> Bool {
+        return allStations.isEmpty
+    }
+    
+    private func parseStopPoints(data: [StopPoint]) -> [StopPointMetaData.modeName: Set<StopPoint>] {
+        var stopPointsByModeName: [StopPointMetaData.modeName: Set<StopPoint>] = Dictionary()
+        for stopPoint in data {
+            for mode in stopPoint.modes {
+                let parsedMode: StopPointMetaData.modeName = StopPointMetaData.modeName.init(rawValue: mode) ?? StopPointMetaData.modeName.tube
+                stopPointsByModeName[parsedMode]?.formUnion([stopPoint])
+            }
+        }
+        return stopPointsByModeName
     }
     
 }

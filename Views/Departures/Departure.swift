@@ -42,9 +42,8 @@ struct Departure: View, Hashable, Comparable {
                 Text(predictedArrival.getReadableDestinationName() ?? "Check Station Board")
                     .fixedSize()
             }
-                        
-            let arrivalSeconds = predictedArrival.timeToStation
-            let computedMinutes = arrivalSeconds / 60
+            
+            let computedMinutes = predictedArrival.timeToStation / 60
             let minutesLabel = computedMinutes < 1 ? "Due" :
                 (computedMinutes == 1 ? "1 min" : String(computedMinutes) + " mins")
             

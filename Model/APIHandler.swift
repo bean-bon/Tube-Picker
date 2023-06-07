@@ -7,22 +7,14 @@
 
 import Foundation
 
+enum AsyncLoadingState {
+    case empty
+    case success
+    case downloading
+    case failure
+}
+
 class APIHandler {
-    
-    /**
-     Assuming the data has been retrieved, this function decodes recieved payloads.
-     */
-    private func decode<T: Decodable>(data: Data) -> T {
-            
-        do {
-            let decoder = JSONDecoder()
-            //debugPrint(String(decoding: data, as: UTF8.self))
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            fatalError("Couldn't parse \(T.self): \n\(error)")
-        }
-        
-    }
     
     func lineArrivals(line: String) async -> [LineArrival] {
         
@@ -32,7 +24,7 @@ class APIHandler {
                 
         do {
             let data = try lookup.get()
-            return decode(data: data)
+            return DataManager.decodeJson(data: data) ?? []
         }
         catch {
             print("Unexpected error retrieving line arrivals.")
@@ -42,35 +34,93 @@ class APIHandler {
         
     }
     
-    func predictedArrivals(mode: String, count: Int = 5) async -> [PredictedArrival] {
+    func predictedArrivals(mode: StopPointMetaData.modeName, count: Int = 5) async -> [PredictedArrival] {
                 
         var url = "https://api.tfl.gov.uk/Mode/\(mode)/Arrivals?count=\(count)"
 
         // Special case fr the elizabeth line since line arrivals uses "elizabeth", and this
         // uses "elizabeth-line".
-        if mode == Line.Mode.elizabeth.rawValue {
+        if mode == StopPointMetaData.modeName.elizabeth {
             url = "https://api.tfl.gov.uk/Mode/elizabeth-line/Arrivals?count=\(count)"
         }
         // Special case for the overground since line arrivals uses "london-overground", and predicted
         // uses "overground".
-        if mode == Line.Mode.overground.rawValue {
-            url = "https://api.tfl.gov.uk/Mode/overground/Arrivals?count=10"
+        if mode == StopPointMetaData.modeName.overground {
+            url = "https://api.tfl.gov.uk/Mode/overground/Arrivals?count=\(count)"
         }
-        
-        print("Using mode \(mode) with url: \(url)")
-        
+                
         let lookup = await genericJsonLookup(url: url)
         
         do {
             let data = try lookup.get()
-            return decode(data: data)
+            return DataManager.decodeJson(data: data) ?? []
         }
         catch {
             print("Unexpected error retrieving predicted arrivals.")
         }
         
-        return [PredictedArrival]()
+        return []
         
+    }
+    
+    /**
+     Given a mode, return the corresponding StopPoints.
+     This method seems to have a long response time so using stopPointsByLineID() is preferred.
+     */
+    func stopPoints(mode: StopPointMetaData.modeName) async -> Array<StopPoint> {
+        
+        let modeDescription = StopPointMetaData.modeNameAPIFormat(mode: mode)
+        
+        let url = "https://api.tfl.gov.uk/StopPoint/Mode/\(modeDescription)"
+        let lookup = await genericJsonLookup(url: url)
+        
+        do {
+            let data = try lookup.get()
+            let intermediateResponse: StopPointRawResponse? = DataManager.decodeJson(data: data)
+            return intermediateResponse?.stopPoints ?? Array()
+        } catch {
+            print("Unexpected error thrown while retreiving StopPoints for mode: \(mode)")
+        }
+        
+        return []
+        
+    }
+    
+    /**
+     Given a Line ID, return the corresponding StopPoints.
+     */
+    func stopPointsByLineID(line: Line) async -> Array<StopPoint> {
+        
+        let url = "https://api.tfl.gov.uk/Line/\(line.id)/StopPoints"
+        let lookup = await genericJsonLookup(url: url)
+        
+        do {
+            let data = try lookup.get()
+            return DataManager.decodeJson(data: data) ?? Array()
+        } catch {
+            print("Unexpected error thrown while retreiving StopPoints for line: \(line)")
+        }
+        
+        return []
+        
+    }
+    
+    /**
+     Given a StationNaptan, return the arrivals for the corresponding station.
+     */
+    func naptanStationArrivals(naptanID: String) async -> [PredictedArrival] {
+        
+        let url = "https://api.tfl.gov.uk/StopPoint/\(naptanID)/Arrivals"
+        let lookup = await genericJsonLookup(url: url)
+        
+        do {
+            let data = try lookup.get()
+            return DataManager.decodeJson(data: data) ?? []
+        } catch {
+            print("Failed to parse arrivals from StopPoint lookup.")
+            return []
+        }
+            
     }
     
     private func genericJsonLookup(url: String) async -> Result<Data, any Error> {

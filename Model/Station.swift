@@ -10,21 +10,28 @@ import Foundation
 struct Station: Hashable, Comparable {
     
     let name: String
-    let mode: Line.Mode
+    let mode: StopPointMetaData.modeName
+    let naptanID: String?
     
-    static let `default` = Station(name: "Paddington Underground Station", mode: Line.Mode.tube)
+    static let `default` = Station(name: "Paddington Underground Station", mode: StopPointMetaData.modeName.tube, naptanID: nil)
 
-    static func < (lhs: Station, rhs: Station) -> Bool {
-        return lhs.name < rhs.name
-    }
-
+    /**
+     Strip blacklisted terms from the full station name and return the result.
+     */
     func getReadableName() -> String {
         return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
     }
-        
-    init(name: String, mode: Line.Mode) {
-        self.name = name
-        self.mode = mode
+    
+    static func < (lhs: Station, rhs: Station) -> Bool {
+        return lhs.name < rhs.name
+    }
+    
+    static func ==(lhs: Station, rhs: Station) -> Bool {
+        return lhs.getReadableName() == rhs.getReadableName()
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(getReadableName())
     }
     
 }
