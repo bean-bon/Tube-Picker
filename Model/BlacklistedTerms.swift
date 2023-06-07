@@ -16,7 +16,7 @@ class BlacklistedStationTermStripper {
         for item in blacklistedTerms {
             newStationName = newStationName.replacingOccurrences(of: item, with: "")
         }
-        return newStationName
+        return newStationName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private init() {}

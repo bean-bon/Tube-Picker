@@ -95,9 +95,8 @@ final class StationData: ObservableObject {
                 let contents = try Data(contentsOf: stopPointFilePath)
                 stopPointCache = DataManager.decodeJson(data: contents) ?? []
                 var attempts = 0
-                debugPrint("Parsing cache file returned an empty value, attempting to redownload data...")
                 while stopPointCache.isEmpty && attempts < 5 {
-                    debugPrint("Attempt \(attempts + 1)/5...")
+                    debugPrint("Attempt \(attempts + 1)/5 to redownload StopPoint data...")
                     await downloadAndSaveStopPoints(filePath: stopPointFilePath)
                     attempts += 1
                 }
