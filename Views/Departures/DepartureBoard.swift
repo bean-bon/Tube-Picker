@@ -106,6 +106,7 @@ struct DepartureBoard: View {
         }
         let sliceSize = intermediateDepartures.count > 10 ? 10 : intermediateDepartures.count
         departures = Array(intermediateDepartures[..<sliceSize])
+        lines = departures.map { $0.predictedArrival.lineName }.unique()
         updateFilteredArrivals()
         updateDestinations()
     }
