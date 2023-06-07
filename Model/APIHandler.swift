@@ -7,6 +7,13 @@
 
 import Foundation
 
+enum AsyncLoadingState {
+    case empty
+    case success
+    case downloading
+    case failure
+}
+
 class APIHandler {
     
     func lineArrivals(line: String) async -> [LineArrival] {
@@ -17,7 +24,7 @@ class APIHandler {
                 
         do {
             let data = try lookup.get()
-            return DataManager.decodeJson(data: data)
+            return DataManager.decodeJson(data: data) ?? []
         }
         catch {
             print("Unexpected error retrieving line arrivals.")
@@ -46,7 +53,7 @@ class APIHandler {
         
         do {
             let data = try lookup.get()
-            return DataManager.decodeJson(data: data)
+            return DataManager.decodeJson(data: data) ?? []
         }
         catch {
             print("Unexpected error retrieving predicted arrivals.")
@@ -58,6 +65,7 @@ class APIHandler {
     
     /**
      Given a mode, return the corresponding StopPoints.
+     This method seems to have a long response time so using stopPointsByLineID() is preferred.
      */
     func stopPoints(mode: StopPointMetaData.modeName) async -> Array<StopPoint> {
         
@@ -68,10 +76,29 @@ class APIHandler {
         
         do {
             let data = try lookup.get()
-            let intermediateResponse: StopPointRawResponse = DataManager.decodeJson(data: data)
-            return intermediateResponse.stopPoints
+            let intermediateResponse: StopPointRawResponse? = DataManager.decodeJson(data: data)
+            return intermediateResponse?.stopPoints ?? Array()
         } catch {
             print("Unexpected error thrown while retreiving StopPoints for mode: \(mode)")
+        }
+        
+        return []
+        
+    }
+    
+    /**
+     Given a Line ID, return the corresponding StopPoints.
+     */
+    func stopPointsByLineID(line: Line) async -> Array<StopPoint> {
+        
+        let url = "https://api.tfl.gov.uk/Line/\(line.id)/StopPoints"
+        let lookup = await genericJsonLookup(url: url)
+        
+        do {
+            let data = try lookup.get()
+            return DataManager.decodeJson(data: data) ?? Array()
+        } catch {
+            print("Unexpected error thrown while retreiving StopPoints for line: \(line)")
         }
         
         return []
@@ -88,7 +115,7 @@ class APIHandler {
         
         do {
             let data = try lookup.get()
-            return DataManager.decodeJson(data: data)
+            return DataManager.decodeJson(data: data) ?? []
         } catch {
             print("Failed to parse arrivals from StopPoint lookup.")
             return []

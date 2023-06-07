@@ -36,7 +36,7 @@ class StopPointMetaData {
     
     private init() {}
     
-    enum modeName: String, CaseIterable, Codable {
+    enum modeName: String, CaseIterable {
         case all
         case tube
         case dlr

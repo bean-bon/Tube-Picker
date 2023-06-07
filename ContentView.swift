@@ -11,40 +11,35 @@ struct ContentView: View {
     
     @EnvironmentObject var stationData: StationData
     @State var randomStation: Station = Station.default
-    @State var searchString: String = ""
     
     var body: some View {
                 
         NavigationView {
-            VStack {
-                ModeListView()
-                    .environmentObject(stationData)
-            }
-            .onAppear {
-                updateRandomStation()
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: DepartureBoard(station: randomStation)) {
-                        Image(systemName: "questionmark.app")
-                    }
-                    .navigationTitle(randomStation.getReadableName())
+            ModeListView()
+                .environmentObject(stationData)
+                .onAppear {
+                    updateRandomStation()
                 }
-            }
+                .toolbar {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
+                        if stationData.getLoadingState() == .success {
+                            NavigationLink(destination: DepartureBoard(station: randomStation)) {
+                                Image(systemName: "questionmark.app")
+                            }
+                            .navigationTitle(randomStation.getReadableName())
+                        }
+                    }
+                }
         }
         .task {
             await stationData.loadData()
             updateRandomStation()
         }
-                
-    }
-    
-    var searchResults: [Station] {
-        return stationData.allStations.mappedUnique {
-            $0.getReadableName().uppercased()
-        }.filter { station in
-            station.getReadableName().uppercased().contains(searchString.uppercased())
+        .refreshable {
+            await stationData.loadData()
+            updateRandomStation()
         }
+                
     }
     
     func updateRandomStation() -> Void {

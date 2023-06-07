@@ -13,46 +13,67 @@ import SwiftUI
  This seems flaky as it wouldn't show stations with no departures, but it's not a huge issue at
  the moment.
  */
+@MainActor
 final class StationData: ObservableObject {
+    
+    @Published var allStations: [Station] = []
+    // Second dictionary groups by NaptanID.
+    @Published var groupedStations: [StopPointMetaData.modeName: [String: Station]] = Dictionary()
+    @Published private var loadingState: AsyncLoadingState = .empty
     
     private let apiHandler = APIHandler()
     private var stopPointCache: Array<StopPoint> = Array()
-    @Published var allStations: [Station] = []
-    @Published var groupedStations: [StopPointMetaData.modeName: Set<Station>] = Dictionary()
     
     func loadData() async {
         if !needsLoad() {
             return
         }
         await loadStopPointData()
-        DispatchQueue.main.async {
-            self.updateStationVariables()
-        }
+        updateStationVariables()
+        loadingState = self.allStations.isEmpty ? .failure : .success
+    }
+    
+    func getLoadingState() -> AsyncLoadingState {
+        return loadingState
     }
     
     func stationGroupKeys() -> [StopPointMetaData.modeName] {
         return Array(groupedStations.keys)
     }
-    
+
     private func updateStationVariables() {
+        parseStationStopPoints()
+        groupStationsFromAll()
+    }
+    
+    private func parseStationStopPoints() {
         stopPointCache.filter {
             $0.commonName.contains("Station")
         }.forEach { stopPoint in
             stopPoint.modes.forEach { mode in
-                let computedMode: StopPointMetaData.modeName = {
+                var computedMode: StopPointMetaData.modeName? {
                     return mode == "elizabeth-line"
                     ? StopPointMetaData.modeName.elizabeth
-                    : StopPointMetaData.modeName.init(rawValue: mode) ?? StopPointMetaData.modeName.tube
-                }()
-                allStations.insert(Station(name: stopPoint.commonName, mode: computedMode, naptanID: stopPoint.stationNaptan), at: 0)
+                    : StopPointMetaData.modeName.init(rawValue: mode)
+                }
+                if computedMode != nil {
+                    allStations += [Station(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), mode: computedMode!, naptanID: stopPoint.stationNaptan)]
+                }
             }
         }
-        allStations.forEach { station in
-            let current = groupedStations[station.mode]
-            if current == nil {
-                groupedStations[station.mode] = [station]
-            } else {
-                groupedStations[station.mode]!.formUnion([station])
+    }
+    
+    private func groupStationsFromAll() {
+        StopPointMetaData.modeName.allCases.forEach { mode in
+            allStations.filter {
+                $0.mode == mode && $0.naptanID != nil
+            }.forEach { station in
+                if groupedStations[mode] == nil {
+                    groupedStations[mode] = Dictionary()
+                }
+                if groupedStations[mode]![station.naptanID!] == nil {
+                    groupedStations[mode]![station.naptanID!] = station
+                }
             }
         }
     }
@@ -68,18 +89,35 @@ final class StationData: ObservableObject {
                 
         let daySeconds: Double = 60 * 60 * 24
         if  cacheFileModificationDate == nil || !cacheFileModificationDate!.timeIntervalSinceNow.isLess(than: daySeconds) {
-            stopPointCache = await apiHandler.stopPoints(mode: StopPointMetaData.modeName.all)
-            DataManager.saveAsJsonRepresentation(path: stopPointFilePath, data: stopPointCache)
+            await downloadAndSaveStopPoints(filePath: stopPointFilePath)
         } else {
             do {
                 let contents = try Data(contentsOf: stopPointFilePath)
-                stopPointCache = DataManager.decodeJson(data: contents)
+                stopPointCache = DataManager.decodeJson(data: contents) ?? []
+                var attempts = 0
+                debugPrint("Parsing cache file returned an empty value, attempting to redownload data...")
+                while stopPointCache.isEmpty && attempts < 5 {
+                    debugPrint("Attempt \(attempts + 1)/5...")
+                    await downloadAndSaveStopPoints(filePath: stopPointFilePath)
+                    attempts += 1
+                }
             } catch {
-                debugPrint("Failed to parse StopPoint cache file, falling back on API download.")
-                stopPointCache = await apiHandler.stopPoints(mode: StopPointMetaData.modeName.all)
+                debugPrint("Failed to parse StopPoint cache data, falling back on API download.")
+                await downloadAndSaveStopPoints(filePath: stopPointFilePath)
             }
         }
         
+    }
+    
+    private func downloadAndSaveStopPoints(filePath: URL) async {
+        loadingState = .downloading
+        for line in Line.lineMap {
+            stopPointCache.append(contentsOf: await apiHandler.stopPointsByLineID(line: line.value))
+        }
+        loadingState = stopPointCache.isEmpty ? .failure : .success
+        if loadingState == .success {
+            DataManager.saveAsJsonRepresentation(path: filePath, data: stopPointCache)
+        }
     }
     
     /**

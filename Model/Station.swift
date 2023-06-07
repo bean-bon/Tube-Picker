@@ -15,6 +15,13 @@ struct Station: Hashable, Comparable {
     
     static let `default` = Station(name: "Paddington Underground Station", mode: StopPointMetaData.modeName.tube, naptanID: nil)
 
+    /**
+     Strip blacklisted terms from the full station name and return the result.
+     */
+    func getReadableName() -> String {
+        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
+    }
+    
     static func < (lhs: Station, rhs: Station) -> Bool {
         return lhs.name < rhs.name
     }
@@ -22,9 +29,9 @@ struct Station: Hashable, Comparable {
     static func ==(lhs: Station, rhs: Station) -> Bool {
         return lhs.getReadableName() == rhs.getReadableName()
     }
-
-    func getReadableName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(getReadableName())
     }
     
 }

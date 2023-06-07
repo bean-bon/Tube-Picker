@@ -19,7 +19,7 @@ class DataManager {
     /**
      Given some filepath, attempt to decode the contents.
      */
-    static func decodeDocumentJson<T: Decodable>(url: URL) -> T {
+    static func decodeDocumentJson<T: Decodable>(url: URL) -> T? {
         do {
             let contents = try Data(contentsOf: url)
             return decodeJson(data: contents)
@@ -44,12 +44,13 @@ class DataManager {
     /**
      Assuming the data has been retrieved, this function decodes recieved payloads.
      */
-    static func decodeJson<T: Decodable>(data: Data) -> T {
+    static func decodeJson<T: Decodable>(data: Data) -> T? {
         do {
             let decoder = JSONDecoder()
             return try decoder.decode(T.self, from: data)
         } catch {
-            fatalError("Couldn't parse \(T.self): \n\(error)")
+            debugPrint("Couldn't parse \(T.self): \n\(error)")
+            return nil
         }
     }
     

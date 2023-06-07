@@ -33,7 +33,7 @@ struct DepartureBoard: View {
                     .progressViewStyle(CircularProgressViewStyle())
             } else {
                 if filteredDepartures.isEmpty {
-                    Text("No Departures Found")
+                    Text("No Arrivals Found")
                 } else {
                     List(filteredDepartures.sorted(), id: \.self) { departure in
                         departure
@@ -65,11 +65,13 @@ struct DepartureBoard: View {
                         updateDestinations()
                     }
                 }
-                Picker("Destination", selection: $selectedDestination) {
-                    ForEach(destinationPickerOptions, id: \.self) { destination in
-                        Text(destination)
-                    }
-                }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                if destinationPickerOptions.count > 2 {
+                    Picker("Destination", selection: $selectedDestination) {
+                        ForEach(destinationPickerOptions, id: \.self) { destination in
+                            Text(destination)
+                        }
+                    }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                }
             }
         }
     }

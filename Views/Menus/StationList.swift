@@ -13,10 +13,25 @@ struct StationList: View {
     let stations: Set<Station>
     let mode: StopPointMetaData.modeName
     
+    @State var searchString: String = ""
+    
     var body: some View {
-        List(stations.sorted(), id: \.self) { station in
-            NavigationLink(station.getReadableName(), destination: DepartureBoard(station: station))
-        }.navigationTitle(StopPointMetaData.modeNameDescription(mode: mode))
+        List(searchResults.sorted(), id: \.self) { station in
+            NavigationLink(station.name, destination: DepartureBoard(station: station))
+        }
+        .navigationTitle(StopPointMetaData.modeNameDescription(mode: mode))
+        .searchable(text: $searchString)
+        .autocorrectionDisabled(true)
+    }
+    
+    var searchResults: Set<Station> {
+        if searchString.isEmpty {
+            return stations
+        } else {
+            return stations.filter { station in
+                station.name.uppercased().contains(searchString.uppercased())
+            }
+        }
     }
     
 }
