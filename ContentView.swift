@@ -13,7 +13,6 @@ struct ContentView: View {
     @State var randomStation: Station = Station.default
     
     var body: some View {
-                
         NavigationView {
             ModeListView()
                 .environmentObject(stationData)
@@ -23,7 +22,7 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .navigationBarTrailing) {
                         if stationData.getLoadingState() == .success {
-                            NavigationLink(destination: DepartureBoard(station: randomStation)) {
+                            NavigationLink(destination: JourneyBoard(station: randomStation)) {
                                 Image(systemName: "questionmark.app")
                             }
                             .navigationTitle(randomStation.getReadableName())
@@ -34,10 +33,12 @@ struct ContentView: View {
         .task {
             await stationData.loadData()
             updateRandomStation()
+            await DataManager.englishHolidays.downloadAndSaveToDisk()
         }
         .refreshable {
             await stationData.loadData()
             updateRandomStation()
+            await DataManager.englishHolidays.downloadAndSaveToDisk()
         }
                 
     }

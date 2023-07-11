@@ -45,16 +45,16 @@ struct Line: Hashable, Comparable {
         "waterloo-city": Line(id: "waterloo-city", name: "Waterloo & City Line", mode: Line.Mode.tube, colour: Color(red: 149/255, green: 205/255, blue: 186/255))
     ]
     
-    static func lookupColour(lineName: String) -> Color? {
-        let lookupName = lineName.uppercased().components(separatedBy: " ")[0]
+    static func lookupColour(lineName: String?) -> Color? {
+        guard let lookupName = lineName?.uppercased().components(separatedBy: " ")[0]
+        else { return nil }
+        // Lookup exempt names.
+        let exceptionLookup = colourLookupExceptions(name: lookupName)
+        if exceptionLookup != nil {
+            return exceptionLookup
+        }
         for line in lineMap {
             let capitalisedComparator = line.value.name.uppercased().components(separatedBy: " ")[0]
-            // Lookup exempt names.
-            let exceptionLookup = colourLookupExceptions(name: lookupName)
-            if exceptionLookup != nil {
-                return exceptionLookup
-            }
-            // General match for non-exempt names.
             if capitalisedComparator.contains(lookupName) {
                 return line.value.colour
             }
@@ -62,10 +62,20 @@ struct Line: Hashable, Comparable {
         return nil
     }
     
+    public static func lookupLineID(searchString: String) -> String? {
+        guard let candidate = searchString.components(separatedBy: " ").first?.lowercased()
+        else { return nil }
+        return lineMap.keys.first(where: { $0.contains(candidate) })
+    }
+    
     private static func colourLookupExceptions(name: String) -> Color? {
         switch name {
         case "DLR":
             return Line.lineMap["dlr"]!.colour
+        case "LONDON-OVERGROUND":
+            return Line.lineMap["london-overground"]!.colour
+        case "OVERGROUND":
+            return Line.lineMap["london-overground"]!.colour
         default:
             return nil
         }

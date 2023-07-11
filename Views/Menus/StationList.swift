@@ -17,7 +17,7 @@ struct StationList: View {
     
     var body: some View {
         List(searchResults.sorted(), id: \.self) { station in
-            NavigationLink("\(station.name) - \(station.naptanID ?? "")", destination: DepartureBoard(station: station))
+            NavigationLink(station.name, destination: JourneyBoard(station: station))
         }
         .navigationTitle(StopPointMetaData.modeNameDescription(mode: mode))
         .searchable(text: $searchString)

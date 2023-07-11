@@ -7,7 +7,7 @@
 
 import Foundation
 
-class DataManager {
+struct DataManager {
     
     private init() {}
     
@@ -47,11 +47,34 @@ class DataManager {
     static func decodeJson<T: Decodable>(data: Data) -> T? {
         do {
             let decoder = JSONDecoder()
-            return try decoder.decode(T.self, from: data)
+            print("Trying decode of \(data) for \(T.self)")
+            let decoded: T? = try decoder.decode(T.self, from: data)
+            return decoded
         } catch {
-            debugPrint("Couldn't parse \(T.self): \n\(error)")
+            print("Couldn't parse \(T.self): \(String(describing: error))")
             return nil
         }
+    }
+    
+    struct englishHolidays {
+        
+        private init() {}
+        
+        static let cachePath = DataManager.getDocumentsDirectory().appendingPathComponent("UKHolidays", conformingTo: .json)
+        
+        static func getDivisionDataFromDisk() -> HolidayDivision? {
+            return DataManager.decodeDocumentJson(url: cachePath)
+        }
+        
+        static func downloadAndSaveToDisk() async {
+            let data: HolidayDivision? = await APIHandler().getEnglishHolidays()
+            saveDivisionToDisk(division: data)
+        }
+        
+        private static func saveDivisionToDisk(division: HolidayDivision?) {
+            DataManager.saveAsJsonRepresentation(path: englishHolidays.cachePath, data: division)
+        }
+        
     }
     
 }
