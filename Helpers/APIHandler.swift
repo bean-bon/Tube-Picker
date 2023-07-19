@@ -16,8 +16,17 @@ enum AsyncLoadingState {
 
 class APIHandler {
     
+    
+    private func tflURL(_ uri: String) -> String {
+        return "https://tubepicker.fly.dev/tfl?uri=\(uri)"
+    }
+    
+    private func timetableURL(stopName: String, mode: String) -> String {
+        return "https://tubepicker.fly.dev/timetable?stopName=\(stopName)&mode=\(mode)"
+    }
+    
     func lineArrivals(line: String) async -> [LineArrival] {
-        let url = "https://api.tfl.gov.uk/line/\(line)/arrivals"
+        let url = tflURL("line/\(line)/arrivals")
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Unexpected error retrieving line arrivals.") ?? []
     }
     
@@ -26,11 +35,11 @@ class APIHandler {
         let url = {
             switch mode {
             case StopPointMetaData.modeName.elizabeth:
-                return "https://api.tfl.gov.uk/Mode/elizabeth-line/Arrivals?count=\(count)"
+                return tflURL("Mode/elizabeth-line/Arrivals?count=\(count)")
             case StopPointMetaData.modeName.overground:
-                return "https://api.tfl.gov.uk/Mode/overground/Arrivals?count=\(count)"
+                return tflURL("Mode/overground/Arrivals?count=\(count)")
             default:
-                return "https://api.tfl.gov.uk/Mode/\(mode)/Arrivals?count=\(count)"
+                return tflURL("Mode/\(mode)/Arrivals?count=\(count)")
             }
         }()
                 
@@ -46,7 +55,7 @@ class APIHandler {
         
         let modeDescription = StopPointMetaData.modeNameAPIFormat(mode: mode)
         
-        let url = "https://api.tfl.gov.uk/StopPoint/Mode/\(modeDescription)"
+        let url = tflURL("StopPoint/Mode/\(modeDescription)")
         let stopPointResponse: StopPointRawResponse? = await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to decode StopPoints for mode: \(mode)")
         return stopPointResponse?.stopPoints ?? []
         
@@ -56,7 +65,7 @@ class APIHandler {
      Given a Line ID, return the corresponding StopPoints.
      */
     func stopPointsByLineID(line: Line) async -> Array<StopPoint> {
-        let url = "https://api.tfl.gov.uk/Line/\(line.id)/StopPoints"
+        let url = tflURL("Line/\(line.id)/StopPoints")
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Unexpected error thrown while retreiving StopPoints for line: \(line)") ?? Array()
     }
     
@@ -64,7 +73,7 @@ class APIHandler {
      Given a LineID, return the corresponding route/s.
      */
     func lineRoute(lineID: String) async -> RouteResponse? {
-        let url = "https://api.tfl.gov.uk/Line/\(lineID)/Route"
+        let url = tflURL("Line/\(lineID)/Route")
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Could not parse line route for id: \(lineID)")
     }
     
@@ -75,8 +84,8 @@ class APIHandler {
     func tubeDlrTimetables(lineName: String, fromNaptan: String) async -> TwoWayTimetableResponse? {
         guard let lineID = Line.lookupLineID(searchString: lineName)
         else { return nil }
-        let inboundUrl = "https://api.tfl.gov.uk/Line/\(lineID)/Timetable/\(fromNaptan)?direction=inbound"
-        let outboundUrl = "https://api.tfl.gov.uk/Line/\(lineID)/Timetable/\(fromNaptan)?direction=outbound"
+        let inboundUrl = tflURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=inbound")
+        let outboundUrl = tflURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=outbound")
         print("Attempting timetable lookup with urls:\n\(inboundUrl),\n\(outboundUrl)")
         return TwoWayTimetableResponse(inbound: await lookupAndDecodeJson(url: inboundUrl, decodeErrorMessage: "Could not lookup/decode inbound timetable data"),
                                        outbound: await lookupAndDecodeJson(url: outboundUrl, decodeErrorMessage: "Could not lookup/decode outbound timetable data"))
@@ -89,7 +98,7 @@ class APIHandler {
     func overgroundElizabethTimetabling(lineName: String, searchTerm: String) async -> [DarwinScheduleData] {
         guard lineName == "overground" || lineName == "elizabeth"
         else { return [] }
-        let url = "https://beanie.ddns.net/timetable?stopName=\(searchTerm.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? "badSearchTerm")&mode=\(lineName)"
+        let url = timetableURL(stopName: searchTerm.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? "badSearch", mode: lineName)
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to decode response from beanie.ddns.net.") ?? []
     }
     
@@ -104,12 +113,12 @@ class APIHandler {
         case .overground: modeString = "london-overground"
         default: return []
         }
-        let url = "https://api.tfl.gov.uk/StopPoint/\(naptanID)/ArrivalDepartures?lineIds=\(modeString)"
+        let url = tflURL("StopPoint/\(naptanID)/ArrivalDepartures?lineIds=\(modeString)")
         guard let data: [ArrivalDeparture]? = await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to decode ArrivalDepartures from url: \(url)")
         else { return [] }
         return data!.map {
             var newArrivalDeparture = $0
-            newArrivalDeparture.lineName = modeString
+            newArrivalDeparture.lineId = modeString
             return newArrivalDeparture
         }
     }
@@ -119,7 +128,7 @@ class APIHandler {
      */
     func naptanTubeArrivals(naptanID: String) async -> [TubePrediction] {
         
-        let url = "https://api.tfl.gov.uk/StopPoint/\(naptanID)/Arrivals"
+        let url = tflURL("StopPoint/\(naptanID)/Arrivals")
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to parse arrivals from StopPoint lookup.") ?? []
 
     }

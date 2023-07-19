@@ -10,7 +10,7 @@ import SwiftUI
 
 protocol GenericArrival {
     
-    var lineName: String? { get set }
+    var lineId: String? { get set }
     
     func getReadableStationName() -> String
     func getReadableDestinationName() -> String

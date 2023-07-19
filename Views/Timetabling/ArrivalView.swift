@@ -17,36 +17,33 @@ struct ArrivalView: View {
     
     var body: some View {
         
-        var platformDisplay: String {
-            let platformName = arrival.getPlatformDisplayName()
-            if platformName.isEmpty {
-                return ""
-            } else if arrival.getPlatformDisplayName().contains(" - ") {
-                return platformName.components(separatedBy: " - ")[1]
-            } else {
-                return (platformName.reduce(0) { $1 == " " ? $0 + 1 : $0 } == 0 ? "Platform " : "") + platformName
-            }
-        }
-        
         HStack {
             VStack(alignment: .leading) {
                 HStack {
-                    Rectangle()
-                        .fill(Line.lookupColour(lineName: arrival.lineName) ?? Color.white)
-                        .frame(width: 25, height: 10)
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(.white, lineWidth: 1)
-                        )
-                    (Text(translateLineName())
+                    let lineColour = Line.lookupColour(lineID: arrival.lineId)
+                    if lineColour != nil {
+                        Rectangle()
+                            .fill(lineColour!)
+                            .frame(width: 25, height: 10)
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(.white, lineWidth: 1)
+                            )
+                    }
+                    Text(arrival.getReadableDestinationName())
                         .font(.headline)
-                     + Text(arrival.getPlatformDisplayName())
-                        .font(.subheadline))
-                    .fixedSize()
+                        .fixedSize()
                 }
-                Text(arrival.getReadableDestinationName())
-                    .fixedSize()
+                HStack {
+                    let platformDisplay = arrival.getPlatformDisplayName()
+                    let initialDisplay = platformDisplay.isEmpty ? "" : "\(platformDisplay): "
+                    let fullLineName = Line.lookupName(lineID: arrival.lineId)
+                    // 26 characters was found as a good length for using the compact name.
+                    Text("\(initialDisplay)\(fullLineName)".count > 26 ? "\(initialDisplay)\(Line.lookupCompactName(lineID: arrival.lineId))" : "\(initialDisplay)\(fullLineName)")
+                        .font(.caption)
+                        .lineLimit(1)
+                }
             }
 
             Text("**\(arrival.getTimeDisplay())**")
@@ -57,18 +54,6 @@ struct ArrivalView: View {
             
         }
         
-    }
-    
-    /**
-     Function specifically for Darwin timetable data: incomplete line names are filled in.
-     */
-    func translateLineName() -> String {
-        switch arrival.lineName {
-        case "london-overground": return Line.lineMap["london-overground"]!.name
-        case "overground": return Line.lineMap["london-overground"]!.name
-        case "elizabeth": return Line.lineMap["elizabeth"]!.name
-        default: return arrival.lineName ?? ""
-        }
     }
     
 }

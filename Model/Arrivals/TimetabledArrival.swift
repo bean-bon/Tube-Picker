@@ -18,11 +18,11 @@ protocol TimetabledArrival: GenericArrival, Hashable {
  */
 struct TflTimetabledArrival: TimetabledArrival, Equatable {
     
-    static let `default` = TflTimetabledArrival(stationName: "Charing Cross", destinationName: "Edgeware", lineName: "Northern", departureTime: TimetablingTime(hour: "13", minute: "12"))
+    static let `default` = TflTimetabledArrival(stationName: "Charing Cross", destinationName: "Edgeware", lineId: "northern", departureTime: TimetablingTime(hour: "13", minute: "12"))
     
     let stationName: String
     let destinationName: String?
-    var lineName: String?
+    var lineId: String?
     let departureTime: TimetablingTime
     
     func getReadableStationName() -> String {
@@ -63,14 +63,14 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(departureTime)
         hasher.combine(destinationName)
-        hasher.combine(lineName)
+        hasher.combine(lineId)
     }
     
     static func ==(lhs: TflTimetabledArrival, rhs: TflTimetabledArrival) -> Bool {
         return lhs.isArrivalTimeValid() && rhs.isArrivalTimeValid()
         && lhs.departureTime == rhs.departureTime
         && lhs.destinationName == rhs.destinationName
-        && lhs.lineName == rhs.lineName
+        && lhs.lineId == rhs.lineId
     }
     
 }
@@ -85,8 +85,8 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
 struct DarwinScheduleData: TimetabledArrival, Equatable, Decodable {
 
     let stationName: String
-    let destinationName: String?
-    var lineName: String?
+    let destinationName: String
+    var lineId: String?
     let platform: String
     let departureTime: TimetablingTime
     
@@ -95,14 +95,14 @@ struct DarwinScheduleData: TimetabledArrival, Equatable, Decodable {
     }
     
     func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName ?? "")
+        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName)
     }
     
     func getPlatformDisplayName() -> String {
-        if platform.isEmpty {
+        if platform.isEmpty || platform.contains("URL") {
             return ""
         }
-        return " - Platform \(platform)"
+        return "Platform \(platform)"
     }
     
     func getTimeToStationInSeconds() -> Int? {
@@ -125,14 +125,14 @@ struct DarwinScheduleData: TimetabledArrival, Equatable, Decodable {
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(departureTime)
-        hasher.combine(destinationName ?? String(Int.random(in: Int.min...Int.max)))
-        hasher.combine(lineName ?? String(Int.random(in: Int.min...Int.max)))
+        hasher.combine(destinationName)
+        hasher.combine(platform)
     }
     
     static func ==(lhs: DarwinScheduleData, rhs: DarwinScheduleData) -> Bool {
         guard lhs.isArrivalTimeValid() && rhs.isArrivalTimeValid(),
               lhs.destinationName == rhs.destinationName,
-              lhs.lineName == rhs.lineName
+              lhs.lineId == rhs.lineId
         else { return false }
         return abs(lhs.getTimeToStationInSeconds()! - rhs.getTimeToStationInSeconds()!) <= 120
     }

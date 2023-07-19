@@ -18,7 +18,7 @@ protocol PredictedArrival: GenericArrival, Hashable {}
 struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
     
     let stationName: String
-    var lineName: String?
+    var lineId: String?
     let naptanID: String?
     let platformName: String?
     let destinationName: String?
@@ -35,11 +35,10 @@ struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
     }
     
     func getPlatformDisplayName() -> String {
-        if platformName == nil {
-            return ""
-        } else {
-            return " - \(platformName!)"
-        }
+        guard platformName != nil || platformName?.isEmpty == false,
+              platformName?.contains("Unknown") == false
+        else { return "" }
+        return platformName!
     }
     
     /**
@@ -93,12 +92,12 @@ struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
  */
 struct TubePrediction: PredictedArrival, Equatable, Hashable, Codable {
     
-    static let `default` = TubePrediction(id: "0", operationType: 0, stationName: "Charing Cross", lineName: "Northern", platformName: "4", destinationName: "High Barnet", timeToStation: 35, modeName: "tube")
+    static let `default` = TubePrediction(id: "0", operationType: 0, stationName: "Charing Cross", lineId: "northern", platformName: "4", destinationName: "High Barnet", timeToStation: 35, modeName: "tube")
     
     let id: String
     let operationType: Int
     let stationName: String
-    var lineName: String?
+    var lineId: String?
     let platformName: String
     let destinationName: String?
     let timeToStation: Int
@@ -118,8 +117,8 @@ struct TubePrediction: PredictedArrival, Equatable, Hashable, Codable {
     
     func getPlatformDisplayName() -> String {
         return platformName.contains("-")
-        ? " - \(platformName.components(separatedBy: "-")[1].trimmingCharacters(in: .whitespaces))"
-        : platformName.contains("Platform") ? " - \(platformName)" : " - Platform \(platformName)"
+        ? "\(platformName.components(separatedBy: "-")[1].trimmingCharacters(in: .whitespaces))"
+        : platformName.contains("Platform") ? "\(platformName)" : "Platform \(platformName)"
     }
     
     func isArrivalTimeValid() -> Bool {
@@ -142,13 +141,13 @@ struct TubePrediction: PredictedArrival, Equatable, Hashable, Codable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(timeToStation)
         hasher.combine(destinationName)
-        hasher.combine(lineName)
+        hasher.combine(lineId)
     }
     
     static func ==(lhs: TubePrediction, rhs: TubePrediction) -> Bool {
         return lhs.timeToStation == rhs.timeToStation
         && lhs.destinationName == rhs.destinationName
-        && lhs.lineName == rhs.lineName
+        && lhs.lineId == rhs.lineId
     }
 
 }

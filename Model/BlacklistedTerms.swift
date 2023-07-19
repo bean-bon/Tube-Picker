@@ -9,13 +9,13 @@ import Foundation
 
 class BlacklistedStationTermStripper {
     
-    private static let blacklistedTerms: [String] = ["ELL", "(London)", "Crossrail", "Underground", "Rail", "DLR", "Station", "(H&C Line)-Underground", " El", "Nll", "(Berks)"]
+    private static let blacklistedTerms: [String] = ["ELL", "(London)", "London", "Crossrail", "Underground", "Rail", "DLR", "Station", "(H&C Line)-Underground", " El", "Nll", "(Berks)", "(H&C Line)"]
     
     static let noStationFound: String = "Check Station Board"
 
     static func removeBlacklistedTerms(input: String) -> String {
         var newStationName = input
-        let exceptions = ["Check Station Board", "Battersea Power Station"]
+        let exceptions = ["Check Station Board", "London Bridge", "London Fields", "London City Airport", "Battersea Power Station"]
         guard let exemptName = exceptions.first(where: { newStationName.contains($0) })
         else {
             for item in blacklistedTerms {

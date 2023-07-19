@@ -21,7 +21,7 @@ struct TimetableResponse: Codable {
                 return TflTimetabledArrival(
                     stationName: originStation,
                     destinationName: naptanToName[intervalIdToNaptanDestination[String(journey.intervalId)]!] ?? "Unknown",
-                    lineName: lineName,
+                    lineId: lineName,
                     departureTime: TimetablingTime(hour: journey.hour, minute: journey.minute))
             }
         }.reduce([], +)

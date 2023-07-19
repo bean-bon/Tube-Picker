@@ -16,6 +16,9 @@ struct JourneyBoard: View {
     static let defaultLineFilter: String = "All Lines"
     static let defaultDestinationFilter: String = "Any Destination"
     
+    @State private var stationIsFavourite: Bool? = nil
+    @State private var showFilterSheet: Bool = false
+    
     @State private var selectedLine: String = defaultLineFilter
     @State private var selectedDestination: String = defaultDestinationFilter
     
@@ -34,6 +37,8 @@ struct JourneyBoard: View {
     var body: some View {
         VStack {
             let listArrivals = filteredArrivals.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true }
+            let listTimetabling = filteredTimetabling.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true
+            }
             VStack {
                 List {
                     Section(header: Text("Live Departures")) {
@@ -49,17 +54,19 @@ struct JourneyBoard: View {
                             .font(.subheadline)
                         }
                     }
-                    Section(header: Text("Timetable")) {
-                        if !filteredTimetabling.isEmpty {
-                            let sliceSize = filteredTimetabling.count > 10 ? 10 : filteredTimetabling.count
-                            ForEach(filteredTimetabling.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { arrival in
-                                ArrivalView(arrival: arrival)
+                    if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(station.mode) {
+                        Section(header: Text("Timetable")) {
+                            if !listTimetabling.isEmpty {
+                                let sliceSize = listTimetabling.count > 10 ? 10 : listTimetabling.count
+                                ForEach(listTimetabling.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { arrival in
+                                    ArrivalView(arrival: arrival)
+                                }
+                            } else {
+                                Text(loadingTimetable || loadingPredictions // Timetable data loads after predictions.
+                                     ? "Loading timetable..."
+                                     : "No timetabling found")
+                                .font(.subheadline)
                             }
-                        } else {
-                            Text(loadingTimetable || loadingPredictions // Timetable data loads after predictions.
-                                 ? "Loading timetable..."
-                                 : "No timetabling found")
-                            .font(.subheadline)
                         }
                     }
                 }
@@ -73,13 +80,36 @@ struct JourneyBoard: View {
             await loadJourneyBoardData()
         }
         .toolbar {
+            ToolbarItemGroup {
+                Button(action: {
+                    if stationIsFavourite == nil { stationIsFavourite = true }
+                    else { stationIsFavourite = !stationIsFavourite! }}) {
+                    Image(systemName: stationIsFavourite == true ? "star.fill" : "star")
+                }.accessibilityHint(stationIsFavourite == true ? "Remove \(station.name) from favourites." : "Add \(station.name) to favourites.")
+                Button(action: { showFilterSheet = true }) {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+            
+        }
+        .sheet(isPresented: $showFilterSheet) {
             let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + lines.sorted()
             let destinationPickerOptions: [String] = [JourneyBoard.defaultDestinationFilter] + destinations.sorted()
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                if linePickerOptions.count > 2 {
+            VStack {
+                Text("Filters")
+                    .font(.headline)
+                    .padding(EdgeInsets(top: 20, leading: 0, bottom: 10, trailing: 0))
+                    .frame(alignment: .center)
+                List {
+                    Picker("Destination", selection: $selectedDestination) {
+                        ForEach(destinationPickerOptions, id: \.self) { destination in
+                            Text(destination)
+                        }
+                    }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
                     Picker ("Lines", selection: $selectedLine) {
                         ForEach(linePickerOptions.sorted(), id: \.self) { line in
-                            Text(line)
+                            let lookup = Line.lookupName(lineID: line)
+                            Text(lookup.isEmpty ? line : lookup)
                         }
                     }.onChange(of: selectedLine) { _ in
                         selectedDestination = JourneyBoard.defaultDestinationFilter
@@ -87,13 +117,15 @@ struct JourneyBoard: View {
                         updateDestinations()
                     }
                 }
-                if destinationPickerOptions.count > 2 {
-                    Picker("Destination", selection: $selectedDestination) {
-                        ForEach(destinationPickerOptions, id: \.self) { destination in
-                            Text(destination)
-                        }
-                    }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                Button(action: { showFilterSheet = false }) {
+                    Text("Apply Filters")
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .padding(15)
             }
         }
     }
@@ -120,7 +152,7 @@ struct JourneyBoard: View {
         arrivals = data.filter {
             station.name == $0.stationName
         }
-        lines = Set(arrivals.compactMap { $0.lineName })
+        lines = Set(arrivals.compactMap { $0.lineId })
         updateFilteredArrivals()
         updateDestinations()
     }
@@ -140,8 +172,8 @@ struct JourneyBoard: View {
         let arrivalPredictions = predictionData.filter {
             $0.timeToStation < 3600
         }
-        lines = Set(arrivals.compactMap { $0.lineName })
         arrivals = Array(Set(arrivalPredictions))
+        lines = Set(arrivals.compactMap { $0.lineId })
     }
     
     private func reloadNaptanForOvergroundElizabeth() async {
@@ -150,8 +182,8 @@ struct JourneyBoard: View {
             let arrivalTime = $0.getTimeToStationInSeconds()
             return arrivalTime != nil && arrivalTime! < 3600
         }
-        lines = Set(arrivals.compactMap { $0.lineName })
         arrivals = Array(Set(arrivalPredictions))
+        lines = Set(arrivals.compactMap { $0.lineId })
     }
     
     private func getTflTimetabling(lines: Set<String>) async -> [TflTimetabledArrival] {
@@ -167,12 +199,9 @@ struct JourneyBoard: View {
     }
         
     private func updateUITimetableData() async {
-        if [StopPointMetaData.modeName.elizabeth, StopPointMetaData.modeName.overground].contains(station.mode) {
-            let timetableData = Set(await api.overgroundElizabethTimetabling(lineName: station.mode.rawValue, searchTerm: station.name))
-            timetabledArrivals = Array(timetableData.filter { $0.isTimeUntilThisLessThan(seconds: 3600) })
-        } else {
+        if ![StopPointMetaData.modeName.elizabeth, StopPointMetaData.modeName.overground].contains(station.mode) {
             let linesWithTerminatingTrains: Set<String> = Set(arrivals.compactMap {
-                $0.lineName
+                $0.lineId
             })
             let timetableData = Set(await getTflTimetabling(lines: linesWithTerminatingTrains))
             timetabledArrivals = Array(timetableData.filter { $0.isTimeUntilThisLessThan(seconds: 3600) })
@@ -189,9 +218,9 @@ struct JourneyBoard: View {
     
     private func updateDestinations() {
         destinations = filteredArrivals.compactMap {
-            BlacklistedStationTermStripper.removeBlacklistedTerms(input: $0.getReadableDestinationName())
+            BlacklistedStationTermStripper.removeBlacklistedTerms(input: $0.getReadableDestinationName().capitalized)
         }.unique()
-        destinations.removeAll(where: { station.name.contains($0) })
+        destinations.removeAll(where: { station.name.contains($0.capitalized) })
     }
     
 }
@@ -208,7 +237,7 @@ struct FilterPredicates {
     let lineSelection: String
     
     func arrivalFilter(prediction: any GenericArrival) -> Bool {
-        return lineCheck(lineName: prediction.lineName)
+        return lineCheck(lineName: prediction.lineId)
         && (defaultDestinationOrMatchesName(destinationName: prediction.getReadableDestinationName())
             || nilDestinationException(destinationName: prediction.getReadableDestinationName()))
     }
@@ -219,7 +248,7 @@ struct FilterPredicates {
     
     private func defaultDestinationOrMatchesName(destinationName: String?) -> Bool {
         return destinationSelection == JourneyBoard.defaultDestinationFilter ||
-            destinationName?.contains(destinationSelection) == true
+            destinationName?.localizedCaseInsensitiveContains(destinationSelection) == true
     }
     
     private func lineCheck(lineName: String?) -> Bool {
