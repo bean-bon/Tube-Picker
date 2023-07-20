@@ -11,12 +11,13 @@ struct JourneyBoard: View {
     
     let api = APIHandler()
     
-    var station: Station
+    let station: Station
+    private let favourites: FavouriteStations = FavouriteStations.shared
     
     static let defaultLineFilter: String = "All Lines"
     static let defaultDestinationFilter: String = "Any Destination"
     
-    @State private var stationIsFavourite: Bool? = nil
+    @State private var stationIsFavourite: Bool = false
     @State private var showFilterSheet: Bool = false
     
     @State private var selectedLine: String = defaultLineFilter
@@ -36,96 +37,101 @@ struct JourneyBoard: View {
     
     var body: some View {
         VStack {
-            let listArrivals = filteredArrivals.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true }
-            let listTimetabling = filteredTimetabling.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true
-            }
             VStack {
-                List {
-                    Section(header: Text("Live Departures")) {
-                        if !listArrivals.isEmpty {
-                            let sliceSize = listArrivals.count > 10 ? 10 : listArrivals.count
-                            ForEach(listArrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { departure in
-                                ArrivalView(arrival: departure)
-                            }
-                        } else {
-                            Text(loadingPredictions
-                                 ? "Loading live departures..."
-                                 : "No live departures found")
-                            .font(.subheadline)
-                        }
-                    }
-                    if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(station.mode) {
-                        Section(header: Text("Timetable")) {
-                            if !listTimetabling.isEmpty {
-                                let sliceSize = listTimetabling.count > 10 ? 10 : listTimetabling.count
-                                ForEach(listTimetabling.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { arrival in
-                                    ArrivalView(arrival: arrival)
+                let listArrivals = filteredArrivals.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true }
+                let listTimetabling = filteredTimetabling.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true }
+                VStack {
+                    List {
+                        Section(header: Text("Live Departures")) {
+                            if !listArrivals.isEmpty {
+                                let sliceSize = listArrivals.count > 10 ? 10 : listArrivals.count
+                                ForEach(listArrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { departure in
+                                    ArrivalView(arrival: departure)
                                 }
                             } else {
-                                Text(loadingTimetable || loadingPredictions // Timetable data loads after predictions.
-                                     ? "Loading timetable..."
-                                     : "No timetabling found")
+                                Text(loadingPredictions
+                                     ? "Loading live departures..."
+                                     : "No live departures found")
                                 .font(.subheadline)
                             }
                         }
+                        if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(station.mode) {
+                            Section(header: Text("Timetable")) {
+                                if !listTimetabling.isEmpty {
+                                    let sliceSize = listTimetabling.count > 10 ? 10 : listTimetabling.count
+                                    ForEach(listTimetabling.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { arrival in
+                                        ArrivalView(arrival: arrival)
+                                    }
+                                } else {
+                                    Text(loadingTimetable || loadingPredictions // Timetable data loads after predictions.
+                                         ? "Loading timetable..."
+                                         : "No timetabling found")
+                                    .font(.subheadline)
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
-        .navigationTitle(station.getReadableName())
-        .refreshable {
-            await loadJourneyBoardData()
-        }
-        .task {
-            await loadJourneyBoardData()
-        }
-        .toolbar {
-            ToolbarItemGroup {
-                Button(action: {
-                    if stationIsFavourite == nil { stationIsFavourite = true }
-                    else { stationIsFavourite = !stationIsFavourite! }}) {
-                    Image(systemName: stationIsFavourite == true ? "star.fill" : "star")
-                }.accessibilityHint(stationIsFavourite == true ? "Remove \(station.name) from favourites." : "Add \(station.name) to favourites.")
-                Button(action: { showFilterSheet = true }) {
-                    Image(systemName: "ellipsis.circle")
-                }
+            .navigationTitle(station.getReadableName())
+            .task {
+                stationIsFavourite = favourites.isFavourite(naptanID: station.naptanID)
+                await loadJourneyBoardData()
             }
-            
-        }
-        .sheet(isPresented: $showFilterSheet) {
-            let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + lines.sorted()
-            let destinationPickerOptions: [String] = [JourneyBoard.defaultDestinationFilter] + destinations.sorted()
-            VStack {
-                Text("Filters")
-                    .font(.headline)
-                    .padding(EdgeInsets(top: 20, leading: 0, bottom: 10, trailing: 0))
-                    .frame(alignment: .center)
-                List {
-                    Picker("Destination", selection: $selectedDestination) {
-                        ForEach(destinationPickerOptions, id: \.self) { destination in
-                            Text(destination)
-                        }
-                    }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
-                    Picker ("Lines", selection: $selectedLine) {
-                        ForEach(linePickerOptions.sorted(), id: \.self) { line in
-                            let lookup = Line.lookupName(lineID: line)
-                            Text(lookup.isEmpty ? line : lookup)
-                        }
-                    }.onChange(of: selectedLine) { _ in
-                        selectedDestination = JourneyBoard.defaultDestinationFilter
-                        updateFilteredArrivals()
-                        updateDestinations()
+            .refreshable {
+                await loadJourneyBoardData()
+            }
+            .toolbar {
+                ToolbarItemGroup {
+                    Button(action: {
+                        stationIsFavourite.toggle()
+                        favourites.setFavourite(naptanID: station.naptanID, value: stationIsFavourite)
+                    }) {
+                        Image(systemName: stationIsFavourite ? "star.fill" : "star")
+                    }.accessibilityHint(stationIsFavourite ? "Remove \(station.name) from favourites." : "Add \(station.name) to favourites.")
+                    Button(action: { showFilterSheet = true }) {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
-                Button(action: { showFilterSheet = false }) {
-                    Text("Apply Filters")
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                        .padding(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
-                        .frame(maxWidth: .infinity)
+            }
+            .sheet(isPresented: $showFilterSheet) {
+                let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + lines.sorted()
+                let destinationPickerOptions: [String] = [JourneyBoard.defaultDestinationFilter] + destinations.sorted()
+                VStack {
+                    Text("Filters")
+                        .font(.headline)
+                        .padding(EdgeInsets(top: 20, leading: 0, bottom: 10, trailing: 0))
+                        .frame(alignment: .center)
+                    List {
+                        Picker("Destination", selection: $selectedDestination) {
+                            ForEach(destinationPickerOptions, id: \.self) { destination in
+                                Text(destination)
+                            }
+                        }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                        Picker ("Line", selection: $selectedLine) {
+                            ForEach(linePickerOptions.sorted(), id: \.self) { line in
+                                let lookup = Line.lookupName(lineID: line)
+                                Text(lookup.isEmpty ? line : lookup)
+                            }
+                        }.onChange(of: selectedLine) { _ in
+                            selectedDestination = JourneyBoard.defaultDestinationFilter
+                            updateFilteredArrivals()
+                            updateDestinations()
+                        }
+                    }
+                    Button(action: { showFilterSheet = false }) {
+                        Text("Apply Filters")
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(15)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(15)
+                // Black magic from https://stackoverflow.com/questions/72160368/how-to-disable-refreshable-in-nested-view-which-is-presented-as-sheet-fullscreen
+                // to disable refreshable on the sheet.
+                .environment(\EnvironmentValues.refresh as! WritableKeyPath<EnvironmentValues, RefreshAction?>, nil)
             }
         }
     }
@@ -140,7 +146,7 @@ struct JourneyBoard: View {
     }
 
     private func reloadPredicted() async {
-        if station.naptanID == nil {
+        if station.naptanID.isEmpty {
             await reloadWithGlobalDepartureLookup()
         } else {
             await reloadWithNaptanID()
@@ -168,7 +174,7 @@ struct JourneyBoard: View {
     }
     
     private func reloadNaptanForTubeDLR() async {
-        let predictionData = await api.naptanTubeArrivals(naptanID: station.naptanID ?? "")
+        let predictionData = await api.naptanTubeArrivals(naptanID: station.naptanID)
         let arrivalPredictions = predictionData.filter {
             $0.timeToStation < 3600
         }
@@ -177,7 +183,7 @@ struct JourneyBoard: View {
     }
     
     private func reloadNaptanForOvergroundElizabeth() async {
-        let predictionData = await api.naptanArrivalDepartures(naptanID: station.naptanID ?? "", mode: station.mode)
+        let predictionData = await api.naptanArrivalDepartures(naptanID: station.naptanID, mode: station.mode)
         let arrivalPredictions = predictionData.filter {
             let arrivalTime = $0.getTimeToStationInSeconds()
             return arrivalTime != nil && arrivalTime! < 3600
@@ -189,7 +195,7 @@ struct JourneyBoard: View {
     private func getTflTimetabling(lines: Set<String>) async -> [TflTimetabledArrival] {
         var timetableInfo = [TflTimetabledArrival]()
         for line in lines {
-            guard let response: TwoWayTimetableResponse = await api.tubeDlrTimetables(lineName: line, fromNaptan: station.naptanID ?? "")
+            guard let response: TwoWayTimetableResponse = await api.tubeDlrTimetables(lineName: line, fromNaptan: station.naptanID)
             else { continue }
             let timetabledArrivals = (response.inbound?.getTimetabledArrivals(originStation: station.name, lineName: line) ?? [])
             + (response.outbound?.getTimetabledArrivals(originStation: station.name, lineName: line) ?? [])
@@ -223,12 +229,6 @@ struct JourneyBoard: View {
         destinations.removeAll(where: { station.name.contains($0.capitalized) })
     }
     
-}
-
-struct DepartureBoard_Previews: PreviewProvider {
-    static var previews: some View {
-        JourneyBoard(station: Station.default)
-    }
 }
 
 struct FilterPredicates {

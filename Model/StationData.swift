@@ -71,8 +71,8 @@ final class StationData: ObservableObject {
                 if groupedStations[mode] == nil {
                     groupedStations[mode] = Dictionary()
                 }
-                if groupedStations[mode]![station.naptanID!] == nil {
-                    groupedStations[mode]![station.naptanID!] = station
+                if groupedStations[mode]![station.naptanID] == nil {
+                    groupedStations[mode]![station.naptanID] = station
                 }
             }
         }

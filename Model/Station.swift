@@ -11,9 +11,9 @@ struct Station: Hashable, Comparable {
     
     let name: String
     let mode: StopPointMetaData.modeName
-    let naptanID: String?
+    let naptanID: String
     
-    static let `default` = Station(name: "Paddington Underground Station", mode: StopPointMetaData.modeName.tube, naptanID: nil)
+    static let `default` = Station(name: "Paddington Underground Station", mode: StopPointMetaData.modeName.tube, naptanID: "")
 
     /**
      Strip blacklisted terms from the full station name and return the result.

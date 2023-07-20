@@ -12,7 +12,7 @@ struct StationList: View {
     
     let stations: Set<Station>
     let mode: StopPointMetaData.modeName
-    
+        
     @State var searchString: String = ""
     
     var body: some View {

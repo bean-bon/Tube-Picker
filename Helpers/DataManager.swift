@@ -37,7 +37,7 @@ struct DataManager {
             let jsonString = try encoder.encode(data)
             try jsonString.write(to: path)
         } catch {
-            print("Error saving dictionary to disk.")
+            print("Error saving JSON to disk.")
         }
     }
     

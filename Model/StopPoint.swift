@@ -16,7 +16,7 @@ struct StopPoint: Hashable, Comparable, Codable {
     let modes: [String]
     let commonName: String
     let indicator: String?
-    let stationNaptan: String?
+    let stationNaptan: String
     let lat: Double
     let lon: Double
     
