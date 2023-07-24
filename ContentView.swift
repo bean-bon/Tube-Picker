@@ -10,25 +10,44 @@ import SwiftUI
 struct ContentView: View {
     
     @EnvironmentObject var stationData: StationData
-    @State var randomStation: Station = Station.default
+    @State var randomStation: Station = SingleStation.default
     
     var body: some View {
-        NavigationView {
-            ModeListView()
+        TabView {
+            FavouritesList()
                 .environmentObject(stationData)
-                .onAppear {
-                    updateRandomStation()
+                .tabItem {
+                    Image(systemName: "star.fill")
+                    Text("Favourites")
                 }
-                .toolbar {
-                    ToolbarItemGroup(placement: .navigationBarTrailing) {
-                        if stationData.getLoadingState() == .success {
-                            NavigationLink(destination: JourneyBoard(station: randomStation)) {
-                                Image(systemName: "questionmark.app")
+            VStack {
+                Text("Map")
+            }
+            .tabItem {
+                Image(systemName: "map")
+                Text("Map")
+            }
+            NavigationView {
+                ModeListView()
+                    .environmentObject(stationData)
+                    .onAppear {
+                        updateRandomStation()
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .navigationBarTrailing) {
+                            if stationData.getLoadingState() == .success {
+                                NavigationLink(destination: JourneyBoard(station: randomStation)) {
+                                    Image(systemName: "questionmark.app")
+                                }
+                                .navigationTitle(randomStation.getReadableName())
                             }
-                            .navigationTitle(randomStation.getReadableName())
                         }
                     }
-                }
+            }
+            .tabItem {
+                Image(systemName: "line.3.horizontal")
+                Text("Index")
+            }
         }
         .task {
             await stationData.loadData()

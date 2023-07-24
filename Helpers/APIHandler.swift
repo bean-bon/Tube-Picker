@@ -16,6 +16,9 @@ enum AsyncLoadingState {
 
 class APIHandler {
     
+    static let shared = APIHandler()
+    
+    private init() {}
     
     private func tflURL(_ uri: String) -> String {
         return "https://tubepicker.fly.dev/tfl?uri=\(uri)"
@@ -52,9 +55,7 @@ class APIHandler {
      This method seems to have a long response time so using stopPointsByLineID() is preferred.
      */
     func stopPoints(mode: StopPointMetaData.modeName) async -> Array<StopPoint> {
-        
         let modeDescription = StopPointMetaData.modeNameAPIFormat(mode: mode)
-        
         let url = tflURL("StopPoint/Mode/\(modeDescription)")
         let stopPointResponse: StopPointRawResponse? = await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to decode StopPoints for mode: \(mode)")
         return stopPointResponse?.stopPoints ?? []
@@ -86,20 +87,8 @@ class APIHandler {
         else { return nil }
         let inboundUrl = tflURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=inbound")
         let outboundUrl = tflURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=outbound")
-        print("Attempting timetable lookup with urls:\n\(inboundUrl),\n\(outboundUrl)")
         return TwoWayTimetableResponse(inbound: await lookupAndDecodeJson(url: inboundUrl, decodeErrorMessage: "Could not lookup/decode inbound timetable data"),
                                        outbound: await lookupAndDecodeJson(url: outboundUrl, decodeErrorMessage: "Could not lookup/decode outbound timetable data"))
-    }
-    
-    /**
-     Given a station NaptanID and its corresponding line, return the arrivals and departures for the Overground/Elizabeth lines.
-     Note: this method will only work for Overground and the Elizabeth line.
-     */
-    func overgroundElizabethTimetabling(lineName: String, searchTerm: String) async -> [DarwinScheduleData] {
-        guard lineName == "overground" || lineName == "elizabeth"
-        else { return [] }
-        let url = timetableURL(stopName: searchTerm.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? "badSearch", mode: lineName)
-        return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to decode response from beanie.ddns.net.") ?? []
     }
     
     /**
@@ -127,22 +116,20 @@ class APIHandler {
      Given a StationNaptan, return the tube/DLR arrivals for the corresponding station.
      */
     func naptanTubeArrivals(naptanID: String) async -> [TubePrediction] {
-        
         let url = tflURL("StopPoint/\(naptanID)/Arrivals")
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Failed to parse arrivals from StopPoint lookup.") ?? []
-
     }
     
     func getEnglishHolidays() async -> HolidayDivision? {
         let url = "https://www.gov.uk/bank-holidays.json"
         let lookup = await genericDataLookup(url: url)
-        let serverResponse: PublicHolidayServerResponse? = await genericJsonDecode(lookup: lookup, errorMessage: "Could not decode public holidays.")
+        let serverResponse: PublicHolidayServerResponse? = genericJsonDecode(lookup: lookup, errorMessage: "Could not decode public holidays.")
         return serverResponse?.englandAndWales
     }
     
     private func lookupAndDecodeJson<T: Decodable>(url: String, decodeErrorMessage: String?) async -> T? {
         let lookup = await genericDataLookup(url: url)
-        return await genericJsonDecode(lookup: lookup, errorMessage: decodeErrorMessage)
+        return genericJsonDecode(lookup: lookup, errorMessage: decodeErrorMessage)
     }
     
     private func genericDataLookup(url: String) async -> Result<Data, any Error> {
@@ -159,7 +146,7 @@ class APIHandler {
         
     }
     
-    private func genericJsonDecode<T: Decodable>(lookup: Result<Data, any Error>, errorMessage: String?) async -> T? {
+    private func genericJsonDecode<T: Decodable>(lookup: Result<Data, any Error>, errorMessage: String?) -> T? {
         do {
             let data = try lookup.get()
             return DataManager.decodeJson(data: data) ?? nil

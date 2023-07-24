@@ -67,7 +67,7 @@ struct DataManager {
         }
         
         static func downloadAndSaveToDisk() async {
-            let data: HolidayDivision? = await APIHandler().getEnglishHolidays()
+            let data: HolidayDivision? = await APIHandler.shared.getEnglishHolidays()
             saveDivisionToDisk(division: data)
         }
         

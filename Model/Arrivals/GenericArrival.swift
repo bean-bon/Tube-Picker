@@ -8,8 +8,9 @@
 import Foundation
 import SwiftUI
 
-protocol GenericArrival {
+protocol GenericArrival: Equatable, Hashable {
     
+    var stationName: String { get }
     var lineId: String? { get set }
     
     func getReadableStationName() -> String

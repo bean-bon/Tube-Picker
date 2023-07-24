@@ -8,16 +8,13 @@
 import SwiftUI
 
 struct JourneyBoard: View {
-    
-    let api = APIHandler()
-    
-    let station: Station
-    private let favourites: FavouriteStations = FavouriteStations.shared
+        
+    let station: any Station
     
     static let defaultLineFilter: String = "All Lines"
     static let defaultDestinationFilter: String = "Any Destination"
     
-    @State private var stationIsFavourite: Bool = false
+    @State private var stationIsFavourite: Bool? = nil
     @State private var showFilterSheet: Bool = false
     
     @State private var selectedLine: String = defaultLineFilter
@@ -55,7 +52,7 @@ struct JourneyBoard: View {
                                 .font(.subheadline)
                             }
                         }
-                        if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(station.mode) {
+                        if station.needsTimetabling(arrivals: arrivals) {
                             Section(header: Text("Timetable")) {
                                 if !listTimetabling.isEmpty {
                                     let sliceSize = listTimetabling.count > 10 ? 10 : listTimetabling.count
@@ -75,7 +72,7 @@ struct JourneyBoard: View {
             }
             .navigationTitle(station.getReadableName())
             .task {
-                stationIsFavourite = favourites.isFavourite(naptanID: station.naptanID)
+                stationIsFavourite = station.isFavourite()
                 await loadJourneyBoardData()
             }
             .refreshable {
@@ -83,15 +80,17 @@ struct JourneyBoard: View {
             }
             .toolbar {
                 ToolbarItemGroup {
-                    Button(action: {
-                        stationIsFavourite.toggle()
-                        favourites.setFavourite(naptanID: station.naptanID, value: stationIsFavourite)
-                    }) {
-                        Image(systemName: stationIsFavourite ? "star.fill" : "star")
-                    }.accessibilityHint(stationIsFavourite ? "Remove \(station.name) from favourites." : "Add \(station.name) to favourites.")
+                    if stationIsFavourite != nil {
+                        Button(action: {
+                            stationIsFavourite!.toggle()
+                            station.setFavourite(value: stationIsFavourite!)
+                        }) {
+                            Image(systemName: stationIsFavourite! ? "star.fill" : "star")
+                        }.accessibilityHint(stationIsFavourite! ? "Remove \(station.name) from favourites." : "Add \(station.name) to favourites.")
+                    }
                     Button(action: { showFilterSheet = true }) {
                         Image(systemName: "ellipsis.circle")
-                    }
+                    }.accessibilityHint("Station Filters")
                 }
             }
             .sheet(isPresented: $showFilterSheet) {
@@ -107,7 +106,10 @@ struct JourneyBoard: View {
                             ForEach(destinationPickerOptions, id: \.self) { destination in
                                 Text(destination)
                             }
-                        }.onChange(of: selectedDestination) { _ in updateFilteredArrivals() }
+                        }.onChange(of: selectedDestination) { _ in
+                            updateFilteredArrivals()
+                            updateFilteredTimetabling()
+                        }
                         Picker ("Line", selection: $selectedLine) {
                             ForEach(linePickerOptions.sorted(), id: \.self) { line in
                                 let lookup = Line.lookupName(lineID: line)
@@ -116,9 +118,11 @@ struct JourneyBoard: View {
                         }.onChange(of: selectedLine) { _ in
                             selectedDestination = JourneyBoard.defaultDestinationFilter
                             updateFilteredArrivals()
+                            updateFilteredTimetabling()
                             updateDestinations()
                         }
                     }
+                    Text("Naptan: \((station as? SingleStation)?.naptanID ?? "n/a")")
                     Button(action: { showFilterSheet = false }) {
                         Text("Apply Filters")
                             .fontWeight(.bold)
@@ -138,92 +142,31 @@ struct JourneyBoard: View {
     
     private func loadJourneyBoardData() async {
         loadingPredictions = true
-        await reloadPredicted()
+        arrivals = await station.pullArrivals().uniquing(with: { [$0.lineId, $0.getReadableDestinationName(), $0.getTimeDisplay()] })
+        lines = Set(arrivals.compactMap { $0.lineId })
+        updateFilteredArrivals()
+        updateDestinations()
         loadingPredictions = false
         loadingTimetable = true
-        await updateUITimetableData()
+        timetabledArrivals = await station.pullTimetabling(arrivals: filteredArrivals)
         loadingTimetable = false
-    }
-
-    private func reloadPredicted() async {
-        if station.naptanID.isEmpty {
-            await reloadWithGlobalDepartureLookup()
-        } else {
-            await reloadWithNaptanID()
-        }
-    }
-    
-    private func reloadWithGlobalDepartureLookup() async {
-        let data = await api.predictedArrivals(mode: station.mode, count: 10)
-        arrivals = data.filter {
-            station.name == $0.stationName
-        }
-        lines = Set(arrivals.compactMap { $0.lineId })
-        updateFilteredArrivals()
-        updateDestinations()
-    }
-    
-    private func reloadWithNaptanID() async {
-        if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(station.mode) {
-            await reloadNaptanForTubeDLR()
-        } else {
-            await reloadNaptanForOvergroundElizabeth()
-        }
-        updateFilteredArrivals()
-        updateDestinations()
-    }
-    
-    private func reloadNaptanForTubeDLR() async {
-        let predictionData = await api.naptanTubeArrivals(naptanID: station.naptanID)
-        let arrivalPredictions = predictionData.filter {
-            $0.timeToStation < 3600
-        }
-        arrivals = Array(Set(arrivalPredictions))
-        lines = Set(arrivals.compactMap { $0.lineId })
-    }
-    
-    private func reloadNaptanForOvergroundElizabeth() async {
-        let predictionData = await api.naptanArrivalDepartures(naptanID: station.naptanID, mode: station.mode)
-        let arrivalPredictions = predictionData.filter {
-            let arrivalTime = $0.getTimeToStationInSeconds()
-            return arrivalTime != nil && arrivalTime! < 3600
-        }
-        arrivals = Array(Set(arrivalPredictions))
-        lines = Set(arrivals.compactMap { $0.lineId })
-    }
-    
-    private func getTflTimetabling(lines: Set<String>) async -> [TflTimetabledArrival] {
-        var timetableInfo = [TflTimetabledArrival]()
-        for line in lines {
-            guard let response: TwoWayTimetableResponse = await api.tubeDlrTimetables(lineName: line, fromNaptan: station.naptanID)
-            else { continue }
-            let timetabledArrivals = (response.inbound?.getTimetabledArrivals(originStation: station.name, lineName: line) ?? [])
-            + (response.outbound?.getTimetabledArrivals(originStation: station.name, lineName: line) ?? [])
-            timetableInfo.append(contentsOf: timetabledArrivals.filter { $0.isArrivalTimeValid() })
-        }
-        return timetableInfo
-    }
-        
-    private func updateUITimetableData() async {
-        if ![StopPointMetaData.modeName.elizabeth, StopPointMetaData.modeName.overground].contains(station.mode) {
-            let linesWithTerminatingTrains: Set<String> = Set(arrivals.compactMap {
-                $0.lineId
-            })
-            let timetableData = Set(await getTflTimetabling(lines: linesWithTerminatingTrains))
-            timetabledArrivals = Array(timetableData.filter { $0.isTimeUntilThisLessThan(seconds: 3600) })
-        }
-        updateFilteredArrivals()
+        updateFilteredTimetabling()
         updateDestinations()
     }
     
     private func updateFilteredArrivals() {
         let predicateObject = FilterPredicates(destinationSelection: selectedDestination, lineSelection: selectedLine)
         filteredArrivals = arrivals.filter(predicateObject.arrivalFilter)
+    }
+    
+    private func updateFilteredTimetabling() {
+        let predicateObject = FilterPredicates(destinationSelection: selectedDestination, lineSelection: selectedLine)
         filteredTimetabling = timetabledArrivals.filter(predicateObject.arrivalFilter)
     }
     
     private func updateDestinations() {
-        destinations = filteredArrivals.compactMap {
+        print("updating destinations")
+        destinations = (filteredArrivals + filteredTimetabling).compactMap {
             BlacklistedStationTermStripper.removeBlacklistedTerms(input: $0.getReadableDestinationName().capitalized)
         }.unique()
         destinations.removeAll(where: { station.name.contains($0.capitalized) })

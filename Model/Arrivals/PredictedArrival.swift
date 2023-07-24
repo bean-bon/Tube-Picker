@@ -8,14 +8,16 @@
 import Foundation
 import SwiftUI
 
-protocol PredictedArrival: GenericArrival, Hashable {}
+protocol PredictedArrival: GenericArrival {
+    func getNaptan() -> String?
+}
 
 /**
  A representation of the data recieved when looking up arrivals/departures for
  the Elizabeth line or London Overground.
  URL: https://api.tfl.gov.uk/StopPoint/(naptanID)/ArrivalDepartures?lineIds=london-overground,elizabeth
  */
-struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
+struct ArrivalDeparture: PredictedArrival, Decodable {
     
     let stationName: String
     var lineId: String?
@@ -25,6 +27,10 @@ struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
     let scheduledTimeOfDeparture: String?
     let minutesAndSecondsToDeparture: String?
     let departureStatus: String? // Usually "OnTime", may be different.
+    
+    func getNaptan() -> String? {
+        return naptanID
+    }
     
     func getReadableStationName() -> String {
         return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)
@@ -90,11 +96,12 @@ struct ArrivalDeparture: PredictedArrival, Equatable, Hashable, Codable {
  Prediction type which can be used for all TfL modes excluding busses, however, a more specialised
  version exists for the Elizabeth and Overground, so that should be favoured where applicable.
  */
-struct TubePrediction: PredictedArrival, Equatable, Hashable, Codable {
+struct TubePrediction: PredictedArrival, Decodable {
     
-    static let `default` = TubePrediction(id: "0", operationType: 0, stationName: "Charing Cross", lineId: "northern", platformName: "4", destinationName: "High Barnet", timeToStation: 35, modeName: "tube")
+    static let `default` = TubePrediction(id: "0", naptanId: "940something", operationType: 0, stationName: "Charing Cross", lineId: "northern", platformName: "4", destinationName: "High Barnet", timeToStation: 35, modeName: "tube")
     
     let id: String
+    let naptanId: String
     let operationType: Int
     let stationName: String
     var lineId: String?
@@ -102,6 +109,10 @@ struct TubePrediction: PredictedArrival, Equatable, Hashable, Codable {
     let destinationName: String?
     let timeToStation: Int
     let modeName: String
+    
+    func getNaptan() -> String? {
+        return naptanId
+    }
     
     func getReadableStationName() -> String {
         return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)

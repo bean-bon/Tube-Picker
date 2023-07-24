@@ -18,14 +18,14 @@ struct ModeListView: View {
         case .success:
             List(stationData.stationGroupKeys().sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { mode in
                 NavigationLink(StopPointMetaData.modeNameDescription(mode: mode), destination:
-                                StationList(stations: Set(stationData.groupedStations[mode]!.values), mode: mode)
+                                SingleStationList(stations: Set(stationData.groupedStations[mode]!.values), mode: mode)
                 )
             }.navigationTitle("Transport Modes")
         case .downloading:
             ProgressView("Downloading station data")
                 .progressViewStyle(CircularProgressViewStyle())
                 .navigationTitle("")
-        case .failure, .empty:
+        case .failure:
             VStack {
                 Text("Unable to download required data.\n")
                     .bold() +
@@ -45,7 +45,13 @@ struct ModeListView: View {
                 .cornerRadius(5)
                 .disabled(isRefreshOccurring)
             }
+        default:
+            VStack {
+                Text("Tube Picker")
+                    .fontWeight(.bold)
+            }
         }
+        
     }
     
 }

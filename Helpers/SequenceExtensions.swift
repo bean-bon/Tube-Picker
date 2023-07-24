@@ -17,3 +17,23 @@ extension Sequence where Iterator.Element: Hashable {
     }
     
 }
+
+extension Sequence {
+    
+    /**
+     Intended for objects with hashable elements, but cannot be hashable for whatever reason.
+     */
+    func uniquing<T: Hashable>(with mapFunction: (Element) -> T) -> [Iterator.Element] {
+        var seenTuples: Set<T> = Set()
+        var unique = [Iterator.Element]()
+        for element in self {
+            let hashableElements = mapFunction(element)
+            if !seenTuples.contains(hashableElements) {
+                unique.append(element)
+                seenTuples.insert(hashableElements)
+            }
+        }
+        return unique
+    }
+    
+}

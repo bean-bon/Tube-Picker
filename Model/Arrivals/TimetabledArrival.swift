@@ -17,7 +17,7 @@ protocol TimetabledArrival: GenericArrival, Hashable {
  than one using predictions.
  */
 struct TflTimetabledArrival: TimetabledArrival, Equatable {
-    
+
     static let `default` = TflTimetabledArrival(stationName: "Charing Cross", destinationName: "Edgeware", lineId: "northern", departureTime: TimetablingTime(hour: "13", minute: "12"))
     
     let stationName: String

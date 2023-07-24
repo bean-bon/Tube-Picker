@@ -8,9 +8,9 @@
 import Foundation
 import SwiftUI
 
-struct StationList: View {
+struct SingleStationList: View {
     
-    let stations: Set<Station>
+    let stations: Set<SingleStation>
     let mode: StopPointMetaData.modeName
         
     @State var searchString: String = ""
@@ -24,7 +24,7 @@ struct StationList: View {
         .autocorrectionDisabled(true)
     }
     
-    var searchResults: Set<Station> {
+    var searchResults: Set<SingleStation> {
         if searchString.isEmpty {
             return stations
         } else {

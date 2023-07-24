@@ -15,13 +15,12 @@ import SwiftUI
  */
 @MainActor
 final class StationData: ObservableObject {
-    
-    @Published var allStations: [Station] = []
+        
+    @Published var allStations: [SingleStation] = []
     // Second dictionary groups by NaptanID.
-    @Published var groupedStations: [StopPointMetaData.modeName: [String: Station]] = Dictionary()
+    @Published var groupedStations: [StopPointMetaData.modeName: [String: SingleStation]] = Dictionary()
     @Published private var loadingState: AsyncLoadingState = .empty
     
-    private let apiHandler = APIHandler()
     private var stopPointCache: Array<StopPoint> = Array()
     
     func loadData() async {
@@ -47,34 +46,23 @@ final class StationData: ObservableObject {
     }
     
     private func parseStationStopPoints() {
-        stopPointCache.filter {
-            $0.commonName.contains("Station")
-        }.forEach { stopPoint in
+        stopPointCache.forEach { stopPoint in
             stopPoint.modes.forEach { mode in
-                var computedMode: StopPointMetaData.modeName? {
-                    return mode == "elizabeth-line"
-                    ? StopPointMetaData.modeName.elizabeth
-                    : StopPointMetaData.modeName.init(rawValue: mode)
-                }
-                if computedMode != nil {
-                    allStations += [Station(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), mode: computedMode!, naptanID: stopPoint.stationNaptan)]
+                if StopPointMetaData.stationModesNames.contains(mode) {
+                    allStations.append(SingleStation(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), mode: mode, naptanID: stopPoint.stationNaptan))
                 }
             }
         }
     }
     
     private func groupStationsFromAll() {
-        StopPointMetaData.modeName.allCases.forEach { mode in
-            allStations.filter {
-                $0.mode == mode && $0.naptanID != nil
-            }.forEach { station in
-                if groupedStations[mode] == nil {
-                    groupedStations[mode] = Dictionary()
-                }
-                if groupedStations[mode]![station.naptanID] == nil {
-                    groupedStations[mode]![station.naptanID] = station
-                }
+        groupedStations = Dictionary()
+        allStations.forEach { station in
+            let mode = station.mode
+            if groupedStations[mode] == nil {
+                groupedStations[mode] = Dictionary()
             }
+            groupedStations[mode]![station.naptanID] = station
         }
     }
     
@@ -111,7 +99,8 @@ final class StationData: ObservableObject {
     private func downloadAndSaveStopPoints(filePath: URL) async {
         loadingState = .downloading
         for line in Line.lineMap {
-            stopPointCache.append(contentsOf: await apiHandler.stopPointsByLineID(line: line.value))
+            let stations = await APIHandler.shared.stopPointsByLineID(line: line.value)
+            stopPointCache.append(contentsOf: stations)
         }
         loadingState = stopPointCache.isEmpty ? .failure : .success
         if loadingState == .success {
@@ -143,9 +132,11 @@ final class StationData: ObservableObject {
     private func parseStopPoints(data: [StopPoint]) -> [StopPointMetaData.modeName: Set<StopPoint>] {
         var stopPointsByModeName: [StopPointMetaData.modeName: Set<StopPoint>] = Dictionary()
         for stopPoint in data {
-            for mode in stopPoint.modes {
-                let parsedMode: StopPointMetaData.modeName = StopPointMetaData.modeName.init(rawValue: mode) ?? StopPointMetaData.modeName.tube
-                stopPointsByModeName[parsedMode]?.formUnion([stopPoint])
+            stopPoint.modes.forEach { mode in
+                if ![StopPointMetaData.modeName.bus, StopPointMetaData.modeName.unknown].contains(mode) {
+                    print("\(stopPoint.commonName), \(mode)")
+                    stopPointsByModeName[mode]?.formUnion([stopPoint])
+                }
             }
         }
         return stopPointsByModeName
