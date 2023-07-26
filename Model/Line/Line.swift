@@ -58,50 +58,17 @@ struct Line: Hashable, Comparable {
         return lineMap[lineID!]?.compactName ?? ""
     }
     
-    static func lookupColour(lineID: String?) -> Color? {
+    static func lookupColour(lineID: String?, darkMode: Bool = false) -> Color {
         guard lineID != nil
-        else { return nil }
-        return lineMap[lineID!]?.colour
+        else { return darkMode ? .white : .black }
+        let colour = lineMap[lineID!]?.colour
+        return colour == .black && darkMode ? .white : colour ?? .black
     }
     
-    public static func lookupLineID(searchString: String) -> String? {
+    static func lookupLineID(searchString: String) -> String? {
         guard let candidate = searchString.components(separatedBy: " ").first?.lowercased()
         else { return nil }
         return lineMap.keys.first(where: { $0.contains(candidate) })
     }
     
-    private static func colourLookupExceptions(name: String) -> Color? {
-        switch name {
-        case "HAMMERSMITH":
-            return Line.lineMap["hammersmith-city"]!.colour
-        case "DLR":
-            return Line.lineMap["dlr"]!.colour
-        case "LONDON-OVERGROUND":
-            return Line.lineMap["london-overground"]!.colour
-        case "OVERGROUND":
-            return Line.lineMap["london-overground"]!.colour
-        default:
-            return nil
-        }
-    }
-    
 }
-
-//func lookupRedableName(id: UndergroundLineIDs?) -> String {
-//    switch id {
-//    case .bakerloo: return "Bakerloo Line"
-//    case .central: return "Central Line"
-//    case .circle: return "Circle Line"
-//    case .district: return "District Line"
-//    case .dlr: return "Docklands Light Railway"
-//    case .elizabeth: return "Elizabeth line"
-//    case .hammersmith_city: return "Hammersmith & City"
-//    case .jubilee: return "Jubilee Line"
-//    case .metropolitan: return "Metropolitan Line"
-//    case .northern: return "Northern Line"
-//    case .piccadilly: return "Piccadilly Line"
-//    case .victoria: return "Victoria Line"
-//    case .waterloo_city: return "Waterloo & City"
-//    default: return ""
-//    }
-//}

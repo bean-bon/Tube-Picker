@@ -9,7 +9,9 @@ import Foundation
 
 protocol Station {
     var name: String { get }
+    var lines: Set<String> { get }
     func getReadableName() -> String
+    func getMode() -> StopPointMetaData.modeName
     func pullArrivals() async -> [any PredictedArrival]
     func pullTimetabling(arrivals: [any PredictedArrival]) async -> [any TimetabledArrival]
     func needsTimetabling(arrivals: [any PredictedArrival]) -> Bool
@@ -24,10 +26,27 @@ protocol Station {
 struct CombinationNaptanStation: Station {
     
     let name: String
+    let lines: Set<String>
     let naptanDictionary: [String: StopPointMetaData.modeName]
+    
+    init(name: String, lines: Set<String>, naptanDictionary: [String : StopPointMetaData.modeName]) {
+        self.name = name
+        self.lines = lines
+        self.naptanDictionary = naptanDictionary
+    }
+    
+    init(name: String, singleStations: [SingleStation]) {
+        self.name = name
+        self.lines = Set(singleStations.map { $0.lines }.joined())
+        self.naptanDictionary = Dictionary(singleStations.map { ($0.name, $0.mode) }, uniquingKeysWith: { _, new in new })
+    }
     
     func getReadableName() -> String {
         return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
+    }
+    
+    func getAllLineIds() -> Set<String> {
+        return Set(naptanDictionary.keys)
     }
     
     func pullArrivals() async -> [any PredictedArrival] {
@@ -64,6 +83,10 @@ struct CombinationNaptanStation: Station {
     
     func isFavourite() -> Bool? {
         return nil
+    }
+    
+    func getMode() -> StopPointMetaData.modeName {
+        return .allMetro
     }
     
     /**
@@ -107,18 +130,20 @@ struct CombinationNaptanStation: Station {
 struct SingleStation: Station, Hashable, Comparable {
     
     let name: String
+    let lines: Set<String>
     let mode: StopPointMetaData.modeName
     let naptanID: String
     
-    init(name: String, mode: StopPointMetaData.modeName, naptanID: String) {
+    init(name: String, lines: Set<String>, mode: StopPointMetaData.modeName, naptanID: String) {
         self.name = name
+        self.lines = lines
         self.mode = mode
         self.naptanID = naptanID
     }
     
     private var recentArrivals: ([any PredictedArrival], Date) = ([], Date.distantPast)
     
-    static let `default` = SingleStation(name: "Paddington Underground Station", mode: StopPointMetaData.modeName.tube, naptanID: "")
+    static let `default` = SingleStation(name: "Paddington Underground Station", lines: ["bakerloo", "circle"], mode: StopPointMetaData.modeName.tube, naptanID: "")
 
     /**
      Strip blacklisted terms from the full station name and return the result.
@@ -162,11 +187,15 @@ struct SingleStation: Station, Hashable, Comparable {
     }
     
     func isFavourite() -> Bool? {
-        return FavouriteStations.shared.isFavourite(naptanID: naptanID, mode: mode)
+        return FavouritesInterface.stations.isFavourite(naptanID: naptanID, mode: mode)
     }
     
     func setFavourite(value: Bool) {
-        FavouriteStations.shared.setFavourite(name: name, naptanID: naptanID, mode: mode, value: value)
+        FavouritesInterface.stations.setFavourite(name: name, naptanID: naptanID, mode: mode, lines: lines, value: value)
+    }
+    
+    func getMode() -> StopPointMetaData.modeName {
+        return mode
     }
     
     private func getTimetablingLines(arrivals: [any PredictedArrival]) -> Set<String> {

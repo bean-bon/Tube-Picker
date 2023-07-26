@@ -21,16 +21,14 @@ struct ArrivalView: View {
             VStack(alignment: .leading) {
                 HStack {
                     let lineColour = Line.lookupColour(lineID: arrival.lineId)
-                    if lineColour != nil {
-                        Rectangle()
-                            .fill(lineColour!)
-                            .frame(width: 25, height: 10)
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(.white, lineWidth: 1)
-                            )
-                    }
+                    Rectangle()
+                        .fill(lineColour)
+                        .frame(width: 25, height: 10)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(.white, lineWidth: 1)
+                        )
                     Text(arrival.getReadableDestinationName())
                         .font(.headline)
                         .fixedSize()

@@ -16,6 +16,7 @@ struct StopPoint: Hashable, Comparable, Codable {
     let modes: [StopPointMetaData.modeName]
     let commonName: String
     let stationNaptan: String
+    let lines: [ApiLine]
     let lat: Double
     let lon: Double
     
@@ -28,6 +29,7 @@ struct StopPoint: Hashable, Comparable, Codable {
         }
         self.commonName = try container.decode(String.self, forKey: .commonName)
         self.stationNaptan = try container.decode(String.self, forKey: .stationNaptan)
+        self.lines = try container.decode([ApiLine].self, forKey: .lines)
         self.lat = try container.decode(Double.self, forKey: .lat)
         self.lon = try container.decode(Double.self, forKey: .lon)
     }
@@ -44,11 +46,15 @@ struct StopPointRawResponse: Codable {
     
 }
 
+struct ApiLine: Codable, Hashable, Equatable {
+    let id: String
+}
+
 class StopPointMetaData {
     
     private init() {}
     
-    static let stationModesNames = [modeName.dlr, modeName.elizabeth, modeName.overground, modeName.tube]
+    static let stationModesNames = [modeName.allMetro, modeName.dlr, modeName.elizabeth, modeName.overground, modeName.tube]
     
     enum modeName: String, Codable, CaseIterable {
         case allMetro

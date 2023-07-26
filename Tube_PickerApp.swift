@@ -11,11 +11,13 @@ import SwiftUI
 struct Tube_PickerApp: App {
     
     @StateObject private var stationData = StationData()
+    @StateObject private var lineData = LineStatusDataManager()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(stationData)
+                .environmentObject(lineData)
         }
     }
 }

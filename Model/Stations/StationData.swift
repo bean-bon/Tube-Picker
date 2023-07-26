@@ -49,7 +49,7 @@ final class StationData: ObservableObject {
         stopPointCache.forEach { stopPoint in
             stopPoint.modes.forEach { mode in
                 if StopPointMetaData.stationModesNames.contains(mode) {
-                    allStations.append(SingleStation(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), mode: mode, naptanID: stopPoint.stationNaptan))
+                    allStations.append(SingleStation(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), lines: Set(stopPoint.lines.filter { !$0.id.contains(where: { $0.isNumber }) }.map { $0.id }), mode: mode, naptanID: stopPoint.stationNaptan))
                 }
             }
         }

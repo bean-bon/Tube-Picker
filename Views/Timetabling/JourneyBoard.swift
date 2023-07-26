@@ -11,6 +11,8 @@ struct JourneyBoard: View {
         
     let station: any Station
     
+    @EnvironmentObject var lineData: LineStatusDataManager
+    
     static let defaultLineFilter: String = "All Lines"
     static let defaultDestinationFilter: String = "Any Destination"
     
@@ -20,7 +22,6 @@ struct JourneyBoard: View {
     @State private var selectedLine: String = defaultLineFilter
     @State private var selectedDestination: String = defaultDestinationFilter
     
-    @State private var lines: Set<String> = Set()
     @State private var destinations: [String] = []
     
     @State private var arrivals: [any PredictedArrival] = []
@@ -28,7 +29,7 @@ struct JourneyBoard: View {
     
     @State private var timetabledArrivals: [any TimetabledArrival] = []
     @State private var filteredTimetabling: [any TimetabledArrival] = []
-    
+        
     @State private var loadingPredictions: Bool = false
     @State private var loadingTimetable: Bool = false
     
@@ -39,6 +40,11 @@ struct JourneyBoard: View {
                 let listTimetabling = filteredTimetabling.filter { $0.isArrivalTimeValid() && $0.getReadableDestinationName().contains(station.name) != true }
                 VStack {
                     List {
+                        if !station.lines.intersection(lineData.abnormalStatusLines()).isEmpty {
+                            Section(header: Text("Line Status")) {
+                                LineStatusList(linePredicate: { station.lines.contains($0.id) }, onlyShowAbnormalStatus: true, showFavouriteButtons: false)
+                            }
+                        }
                         Section(header: Text("Live Departures")) {
                             if !listArrivals.isEmpty {
                                 let sliceSize = listArrivals.count > 10 ? 10 : listArrivals.count
@@ -94,7 +100,7 @@ struct JourneyBoard: View {
                 }
             }
             .sheet(isPresented: $showFilterSheet) {
-                let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + lines.sorted()
+                let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + station.lines.sorted()
                 let destinationPickerOptions: [String] = [JourneyBoard.defaultDestinationFilter] + destinations.sorted()
                 VStack {
                     Text("Filters")
@@ -143,7 +149,6 @@ struct JourneyBoard: View {
     private func loadJourneyBoardData() async {
         loadingPredictions = true
         arrivals = await station.pullArrivals().uniquing(with: { [$0.lineId, $0.getReadableDestinationName(), $0.getTimeDisplay()] })
-        lines = Set(arrivals.compactMap { $0.lineId })
         updateFilteredArrivals()
         updateDestinations()
         loadingPredictions = false
@@ -165,7 +170,6 @@ struct JourneyBoard: View {
     }
     
     private func updateDestinations() {
-        print("updating destinations")
         destinations = (filteredArrivals + filteredTimetabling).compactMap {
             BlacklistedStationTermStripper.removeBlacklistedTerms(input: $0.getReadableDestinationName().capitalized)
         }.unique()

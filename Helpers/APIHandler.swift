@@ -33,6 +33,11 @@ class APIHandler {
         return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Unexpected error retrieving line arrivals.") ?? []
     }
     
+    func allLineStatus() async -> [LineStatus] {
+        let url = tflURL("Line/Mode/\(StopPointMetaData.modeNameAPIFormat(mode: .allMetro))/Status")
+        return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Unexpected error decoding TfL Line statuses.") ?? []
+    }
+        
     func predictedArrivals(mode: StopPointMetaData.modeName, count: Int = 5) async -> [TubePrediction] {
         
         let url = {
