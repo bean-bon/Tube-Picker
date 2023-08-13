@@ -18,6 +18,7 @@ struct Line: Hashable, Comparable {
         case elizabeth
         case dlr
         case overground
+        case bus
     }
     
     let id: String

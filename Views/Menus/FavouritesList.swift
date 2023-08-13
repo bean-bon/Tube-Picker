@@ -11,15 +11,16 @@ struct FavouritesList: View {
     
     @EnvironmentObject private var stationData: StationData
     @EnvironmentObject private var lineStatusData: LineStatusDataManager
-    @State private var favourites: [StationListItemWrapper] = []
+    @State private var favouriteStations: [StationListItemWrapper] = []
+    @State private var favouriteBusStops: [StationListItemWrapper] = []
+    @State private var favouriteLines: Set<String> = .init()
     
     var body: some View {
         NavigationView {
-            if favourites.isEmpty && lineStatusData.favourites.favouriteLines.isEmpty {
+            if favouriteStations.isEmpty && favouriteLines.isEmpty && favouriteBusStops.isEmpty {
                 Text("No favourites yet!\nAdd some in Map or Index.")
             } else {
-                let metroModeStations = favourites.filter { StopPointMetaData.stationModesNames.contains($0.station.getMode()) }
-                let busStops = favourites.filter { $0.station.getMode() == .bus }
+                let metroModeStations = favouriteStations.filter { StopPointMetaData.stationModesNames.contains($0.station.getMode()) }
                 List {
                     if !lineStatusData.favourites.favouriteLines.isEmpty {
                         Section("Line Status") {
@@ -27,10 +28,14 @@ struct FavouritesList: View {
                                 .environmentObject(lineStatusData)
                         }
                     }
-                    if !busStops.isEmpty {
+                    if !favouriteBusStops.isEmpty {
                         Section("Bus Stops") {
-                            ForEach(busStops.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
-                                NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
+                            ForEach(favouriteBusStops.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
+                                let busStop = item.station as! BusStop
+                                HStack {
+                                    BusStopCircle(stopLetter: busStop.stopIndicator, rawBearing: nil, circleRadius: 30)
+                                    NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
+                                }
                             }
                         }
                     }
@@ -46,7 +51,14 @@ struct FavouritesList: View {
             }
         }
         .task {
-            favourites = makeStationsFromFavouriteData()
+            favouriteStations = makeStationsFromFavouriteData()
+            favouriteLines = lineStatusData.favourites.favouriteLines
+            favouriteBusStops = FavouritesInterface.buses.favouriteStops.compactMap(BusStop.init).map { StationListItemWrapper(station: $0) }
+        }
+        .refreshable {
+            favouriteStations = makeStationsFromFavouriteData()
+            favouriteLines = lineStatusData.favourites.favouriteLines
+            favouriteBusStops = FavouritesInterface.buses.favouriteStops.compactMap(BusStop.init).map { StationListItemWrapper(station: $0) }
         }
     }
     
@@ -54,13 +66,17 @@ struct FavouritesList: View {
         let favourites = FavouritesInterface.stations.buildFavouritesList()
         let grouped: Dictionary<String, [FavouriteStation]> = Dictionary(grouping: favourites, by: { $0.name })
         return grouped.map {
-            if $0.value.count == 1 {
+            let mergedDictionary = $0.value.map { station in station.naptanDictionary }.reduce(Dictionary<String, StopPointMetaData.modeName>()) { fav, combined in
+                fav.merging(combined, uniquingKeysWith: { _, new in new })
+            }
+            if $0.value.count == 1 && Set(mergedDictionary.keys).count == 1 {
                 let station = $0.value.first
-                return StationListItemWrapper(station: SingleStation(name: $0.key, lines: station!.lines, mode: station!.mode, naptanID: station!.naptan))
+                return StationListItemWrapper(station: SingleStation(name: $0.key, lines: station!.lines, mode: station!.naptanDictionary.values.first!, naptanID: station!.naptanDictionary.keys.first!, lat: station!.lat, lon: station!.lon))
             } else {
-                return StationListItemWrapper(station: CombinationNaptanStation(name: $0.key, lines: Set($0.value.map { $0.lines }.joined()), naptanDictionary: Dictionary($0.value.map { favourite in
-                    (favourite.naptan, favourite.mode)
-                }, uniquingKeysWith: { old, _ in old })))
+                let mergedDictionary = $0.value.map { station in station.naptanDictionary }.reduce(Dictionary<String, StopPointMetaData.modeName>()) { fav, combined in
+                    fav.merging(combined, uniquingKeysWith: { _, new in new })
+                }
+                return StationListItemWrapper(station: CombinationNaptanStation(name: $0.key, lines: Set($0.value.map { $0.lines }.joined()), naptanDictionary: mergedDictionary, lats: $0.value.map { $0.lat }, lons: $0.value.map { $0.lon }))
             }
         }
     }

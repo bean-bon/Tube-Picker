@@ -47,12 +47,15 @@ struct LineStatusList: View {
 
 struct LineStatusRow: View, Identifiable {
     
+    @Environment(\.colorScheme) private var colourScheme
     @EnvironmentObject private var lineInterface: LineStatusDataManager
 
-    @State private var isFavouriteLine: Bool
-    @State private(set) var statusDetails: StatusDetails?
-    @State private(set) var loading: Bool
-    @State var showDistruptionDetail: Bool
+    @State private var isFavouriteLine: Bool = false
+    @State var showDistruptionDetail: Bool = false
+    
+    private var statusDetails: StatusDetails? {
+        return lineInterface.statusData.first(where: { $0.id == self.id })?.statusDetails.first
+    }
     
     let id: String
     let name: String
@@ -64,10 +67,6 @@ struct LineStatusRow: View, Identifiable {
         self.name = name
         self.descriptionColour = colour
         self.showFavouriteButton = showFavouriteButton
-        self.statusDetails = nil
-        self.isFavouriteLine = false
-        self.loading = false
-        self.showDistruptionDetail = false
     }
 
     var body: some View {
@@ -84,12 +83,12 @@ struct LineStatusRow: View, Identifiable {
                 .buttonStyle(PlainButtonStyle())
             }
             Text("**\(name)**").foregroundStyle(descriptionColour)
-            Text(statusDetails?.statusSeverityDescription ?? (loading ? "Loading Status..." : "Unknown Status"))
+            Text(statusDetails?.statusSeverityDescription ?? (lineInterface.loadingData ? "Loading Status..." : "Unknown Status"))
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .foregroundStyle(translateSeverityToColour(statusMessage: statusDetails?.statusSeverityDescription) ?? .black)
+                .foregroundStyle(translateSeverityToColour(statusMessage: statusDetails?.statusSeverityDescription) ?? (colourScheme == .dark ? .white : .black))
         }
         
-        VStack {
+        VStack(alignment: .leading) {
             if statusDetails?.disruption != nil {
                 DisclosureGroup(isExpanded: $showDistruptionDetail, content: {
                     if statusDetails!.disruption != nil {
@@ -105,16 +104,16 @@ struct LineStatusRow: View, Identifiable {
             }
         }
         .task {
-            loading = true
             isFavouriteLine = lineInterface.favourites.isFavourite(lineId: id)
-            statusDetails = await lineInterface.getStatusData().first(where: { $0.id == self.id })?.statusDetails.first
-            loading = false
+            await lineInterface.updateStatusData()
         }
     }
     
     private func translateSeverityToColour(statusMessage: String?) -> Color? {
-        let colourTuples: [(String, Color)] = [("Good", .green), ("Delays", .orange), ("Closure", .red)]
-        return colourTuples.first(where: { statusMessage != nil && statusMessage!.contains($0.0) })?.1
+        let colourTuples: [(String, Color)] = [("Good", .green), ("Delays", .orange), ("Reduced", .orange), ("Suspended", .red), ("Closure", .red)]
+        return statusMessage != nil
+        ? colourTuples.first(where: { statusMessage!.contains($0.0) })?.1
+        : nil
     }
     
 }

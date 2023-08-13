@@ -6,11 +6,15 @@
 //
 
 import Foundation
+import MapKit
 
 protocol Station {
     var name: String { get }
     var lines: Set<String> { get }
+    var lat: CLLocationDegrees { get }
+    var lon: CLLocationDegrees { get }
     func getReadableName() -> String
+    func getNaptanString() -> String
     func getMode() -> StopPointMetaData.modeName
     func pullArrivals() async -> [any PredictedArrival]
     func pullTimetabling(arrivals: [any PredictedArrival]) async -> [any TimetabledArrival]
@@ -28,21 +32,35 @@ struct CombinationNaptanStation: Station {
     let name: String
     let lines: Set<String>
     let naptanDictionary: [String: StopPointMetaData.modeName]
+    let lat: CLLocationDegrees
+    let lon: CLLocationDegrees
     
-    init(name: String, lines: Set<String>, naptanDictionary: [String : StopPointMetaData.modeName]) {
+    init(name: String, lines: Set<String>, naptanDictionary: [String : StopPointMetaData.modeName], lat: CLLocationDegrees, lon: CLLocationDegrees) {
         self.name = name
         self.lines = lines
         self.naptanDictionary = naptanDictionary
+        self.lat = lat
+        self.lon = lon
+    }
+    
+    init(name: String, lines: Set<String>, naptanDictionary: [String : StopPointMetaData.modeName], lats: [CLLocationDegrees], lons: [CLLocationDegrees]) {
+        self.name = name
+        self.lines = lines
+        self.naptanDictionary = naptanDictionary
+        self.lat = lats.reduce(0, +) / Double(lats.count)
+        self.lon = lons.reduce(0, +) / Double(lons.count)
     }
     
     init(name: String, singleStations: [SingleStation]) {
         self.name = name
         self.lines = Set(singleStations.map { $0.lines }.joined())
-        self.naptanDictionary = Dictionary(singleStations.map { ($0.name, $0.mode) }, uniquingKeysWith: { _, new in new })
+        self.naptanDictionary = Dictionary(singleStations.map { ($0.naptanID, $0.mode) }, uniquingKeysWith: { _, new in new })
+        self.lat = singleStations.map { $0.lat }.reduce(0, +) / Double(singleStations.count)
+        self.lon = singleStations.map { $0.lon }.reduce(0, +) / Double(singleStations.count)
     }
     
     func getReadableName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: name)
     }
     
     func getAllLineIds() -> Set<String> {
@@ -50,15 +68,26 @@ struct CombinationNaptanStation: Station {
     }
     
     func pullArrivals() async -> [any PredictedArrival] {
-        var arrivals = [any PredictedArrival]()
-        for (naptan, mode) in naptanDictionary {
-            if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(mode) {
-                arrivals += await getTubeDLRArrivals(naptanID: naptan)
-            } else {
-                arrivals += await getOvergroundElizabethArrivals(naptanID: naptan, mode: mode)
+        let arrivalsActor = ArrivalsActor()
+        await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
+            for (naptan, mode) in naptanDictionary {
+                if [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains(mode) {
+                    group.addTask { await arrivalsActor.addArrivals(await getTubeDLRArrivals(naptanID: naptan)) }
+                } else {
+                    group.addTask{ await arrivalsActor.addArrivals(await getOvergroundElizabethArrivals(naptanID: naptan, mode: mode)) }
+                }
             }
         }
-        return arrivals
+        
+        return await arrivalsActor.arrivals
+        
+        actor ArrivalsActor {
+            var arrivals = [any PredictedArrival]()
+            func addArrivals(_ new: [any PredictedArrival]) {
+                arrivals += new
+            }
+        }
+        
     }
     
     func pullTimetabling(arrivals: [any PredictedArrival]) async -> [any TimetabledArrival] {
@@ -81,18 +110,24 @@ struct CombinationNaptanStation: Station {
         return naptanDictionary.contains(where: { [StopPointMetaData.modeName.tube, StopPointMetaData.modeName.dlr].contains($0.value)} ) && !lines.isEmpty
     }
     
+    func getNaptanString() -> String {
+        return naptanDictionary.keys.joined(separator: ",")
+    }
+    
     func isFavourite() -> Bool? {
-        return nil
+        return FavouritesInterface.stations.isFavourite(naptanDictionary: naptanDictionary)
     }
     
     func getMode() -> StopPointMetaData.modeName {
-        return .allMetro
+        let modeSet = Set(naptanDictionary.values)
+        return modeSet.count == 1
+        ? modeSet.first!
+        : .allMetro
     }
-    
-    /**
-     This implementation of station cannot support favourites, thus the method does nothing.
-     */
-    func setFavourite(value: Bool) {}
+
+    func setFavourite(value: Bool) {
+        FavouritesInterface.stations.setFavourite(name: name, naptanDictionary: naptanDictionary, lines: lines, coordinates: CLLocationCoordinate2D(latitude: lat, longitude: lon), value: value)
+    }
     
     private func lookupLinesForTimetabling(arrivals: [any PredictedArrival]) -> [String: Set<String>] {
         let stationLines = arrivals
@@ -110,7 +145,7 @@ struct CombinationNaptanStation: Station {
         return lineToNaptans
     }
     
-    private func getTubeDLRArrivals(naptanID: String) async -> [TubePrediction] {
+    private func getTubeDLRArrivals(naptanID: String) async -> [BusTubePrediction] {
         let predictionData = await APIHandler.shared.naptanTubeArrivals(naptanID: naptanID)
         return predictionData.filter {
             $0.timeToStation < 3600
@@ -133,23 +168,31 @@ struct SingleStation: Station, Hashable, Comparable {
     let lines: Set<String>
     let mode: StopPointMetaData.modeName
     let naptanID: String
+    let lat: CLLocationDegrees
+    let lon: CLLocationDegrees
     
-    init(name: String, lines: Set<String>, mode: StopPointMetaData.modeName, naptanID: String) {
+    init(name: String, lines: Set<String>, mode: StopPointMetaData.modeName, naptanID: String, lat: CLLocationDegrees, lon: CLLocationDegrees) {
         self.name = name
         self.lines = lines
         self.mode = mode
         self.naptanID = naptanID
+        self.lat = lat
+        self.lon = lon
     }
     
     private var recentArrivals: ([any PredictedArrival], Date) = ([], Date.distantPast)
     
-    static let `default` = SingleStation(name: "Paddington Underground Station", lines: ["bakerloo", "circle"], mode: StopPointMetaData.modeName.tube, naptanID: "")
+    static let `default` = SingleStation(name: "Paddington Underground Station", lines: ["bakerloo", "circle"], mode: StopPointMetaData.modeName.tube, naptanID: "", lat: 0, lon: 0)
 
     /**
      Strip blacklisted terms from the full station name and return the result.
      */
     func getReadableName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: name)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: name)
+    }
+    
+    func getNaptanString() -> String {
+        return naptanID
     }
     
     func pullArrivals() async -> [any PredictedArrival] {
@@ -187,11 +230,11 @@ struct SingleStation: Station, Hashable, Comparable {
     }
     
     func isFavourite() -> Bool? {
-        return FavouritesInterface.stations.isFavourite(naptanID: naptanID, mode: mode)
+        return FavouritesInterface.stations.isFavourite(naptanDictionary: [naptanID: mode])
     }
     
     func setFavourite(value: Bool) {
-        FavouritesInterface.stations.setFavourite(name: name, naptanID: naptanID, mode: mode, lines: lines, value: value)
+        FavouritesInterface.stations.setFavourite(name: name, naptanDictionary: [naptanID: mode], lines: lines, coordinates: CLLocationCoordinate2D(latitude: lat, longitude: lon), value: value)
     }
     
     func getMode() -> StopPointMetaData.modeName {
@@ -211,7 +254,7 @@ struct SingleStation: Station, Hashable, Comparable {
             .union(linesForTimetabing)
     }
     
-    private func getTubeDLRArrivals() async -> [TubePrediction] {
+    private func getTubeDLRArrivals() async -> [BusTubePrediction] {
         let predictionData = await APIHandler.shared.naptanTubeArrivals(naptanID: naptanID)
         let arrivals = predictionData.filter { $0.timeToStation < 3600 }
         return arrivals
@@ -237,5 +280,86 @@ struct SingleStation: Station, Hashable, Comparable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(getReadableName())
     }
+    
+}
+
+struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
+    
+    let name: String
+    let stopIndicator: String
+    let naptanId: String
+    let lines: Set<String>
+    let bearing: String?
+    let lat: CLLocationDegrees
+    let lon: CLLocationDegrees
+    
+    var description: String {
+        return "\(name):\(stopIndicator):\(naptanId):\(lines.sorted().joined(separator: ",")):\(bearing ?? "nil"):\(lat):\(lon)"
+    }
+    
+    init(name: String, stopIndicator: String, naptanId: String, lines: Set<String>, bearing: String?, lat: CLLocationDegrees, lon: CLLocationDegrees) {
+        self.name = name
+        self.stopIndicator = stopIndicator
+        self.naptanId = naptanId
+        self.lines = lines
+        self.bearing = bearing
+        self.lat = lat
+        self.lon = lon
+    }
+    
+    /**
+     This init is based on the format of the CustomStingConvertible description.
+     */
+    init?(recordString: String) {
+        let splitString = recordString.split(separator: ":")
+        guard splitString.count > 6 else { return nil }
+        self.name = String(splitString[0])
+        self.stopIndicator = String(splitString[1])
+        self.naptanId = String(splitString[2])
+        self.lines = Set(splitString[3].split(separator: ",").map(String.init))
+        self.bearing = splitString[4] == "nil" ? nil : String(splitString[4])
+        guard let doubleLat = Double(splitString[5]),
+              let doubleLon = Double(splitString[6])
+        else { return nil }
+        self.lat = CLLocationDegrees(floatLiteral: doubleLat)
+        self.lon = CLLocationDegrees(floatLiteral: doubleLon)
+    }
+    
+    func getReadableName() -> String {
+        return name
+    }
+    
+    func getNaptanString() -> String {
+        return naptanId
+    }
+    
+    func getMode() -> StopPointMetaData.modeName {
+        return .bus
+    }
+    
+    func pullArrivals() async -> [any PredictedArrival] {
+        return await APIHandler.shared.naptanTubeArrivals(naptanID: naptanId)
+    }
+    
+    func pullTimetabling(arrivals: [any PredictedArrival]) async -> [any TimetabledArrival] {
+        return []
+    }
+    
+    func needsTimetabling(arrivals: [any PredictedArrival]) -> Bool {
+        return false
+    }
+    
+    func isFavourite() -> Bool? {
+        return FavouritesInterface.buses.isFavourite(stop: self)
+    }
+    
+    func setFavourite(value: Bool) {
+        FavouritesInterface.buses.setFavourite(stop: self, value: value)
+    }
+    
+    static func < (lhs: BusStop, rhs: BusStop) -> Bool {
+        return lhs.naptanId < rhs.naptanId
+    }
+    
     
 }
