@@ -78,7 +78,7 @@ struct LineStatusRow: View, Identifiable {
                     lineInterface.favourites.setFavourite(lineId: id, value: isFavouriteLine)
                 }) {
                     Image(systemName: isFavouriteLine ? "star.fill" : "star")
-                        .frame(maxWidth: 20, minHeight: 20)
+                        .frame(maxWidth: FavouritesList.iconWidth, maxHeight: FavouritesList.iconWidth)
                 }
                 .buttonStyle(PlainButtonStyle())
             }

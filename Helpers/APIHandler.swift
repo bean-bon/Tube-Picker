@@ -54,7 +54,8 @@ class APIHandler {
                 lines: Set($0.lines.map { line in line.id }),
                 bearing: $0.additionalProperties?.first(where: { p in p.key == .CompassPoint })?.value,
                 lat: $0.lat,
-                lon: $0.lon
+                lon: $0.lon,
+                towards: $0.additionalProperties?.first(where: { p in p.key == .Towards })?.value ?? ""
             )
         } ?? []
     }

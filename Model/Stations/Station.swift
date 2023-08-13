@@ -292,12 +292,13 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
     let bearing: String?
     let lat: CLLocationDegrees
     let lon: CLLocationDegrees
+    let towards: String
     
     var description: String {
-        return "\(name):\(stopIndicator):\(naptanId):\(lines.sorted().joined(separator: ",")):\(bearing ?? "nil"):\(lat):\(lon)"
+        return "\(name):\(stopIndicator):\(naptanId):\(lines.sorted().joined(separator: ",")):\(bearing ?? "nil"):\(lat):\(lon):\(towards)"
     }
     
-    init(name: String, stopIndicator: String, naptanId: String, lines: Set<String>, bearing: String?, lat: CLLocationDegrees, lon: CLLocationDegrees) {
+    init(name: String, stopIndicator: String, naptanId: String, lines: Set<String>, bearing: String?, lat: CLLocationDegrees, lon: CLLocationDegrees, towards: String) {
         self.name = name
         self.stopIndicator = stopIndicator
         self.naptanId = naptanId
@@ -305,6 +306,7 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
         self.bearing = bearing
         self.lat = lat
         self.lon = lon
+        self.towards = towards
     }
     
     /**
@@ -312,7 +314,7 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
      */
     init?(recordString: String) {
         let splitString = recordString.split(separator: ":")
-        guard splitString.count > 6 else { return nil }
+        guard splitString.count > 7 else { return nil }
         self.name = String(splitString[0])
         self.stopIndicator = String(splitString[1])
         self.naptanId = String(splitString[2])
@@ -323,6 +325,7 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
         else { return nil }
         self.lat = CLLocationDegrees(floatLiteral: doubleLat)
         self.lon = CLLocationDegrees(floatLiteral: doubleLon)
+        self.towards = String(splitString[7])
     }
     
     func getReadableName() -> String {
