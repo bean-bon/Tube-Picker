@@ -15,6 +15,8 @@ struct FavouritesList: View {
     @State private var favouriteBusStops: [StationListItemWrapper] = []
     @State private var favouriteLines: Set<String> = .init()
     
+    static let iconWidth = 30.0
+    
     var body: some View {
         NavigationView {
             if favouriteStations.isEmpty && favouriteLines.isEmpty && favouriteBusStops.isEmpty {
@@ -33,16 +35,32 @@ struct FavouritesList: View {
                             ForEach(favouriteBusStops.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
                                 let busStop = item.station as! BusStop
                                 HStack {
-                                    BusStopCircle(stopLetter: busStop.stopIndicator, rawBearing: nil, circleRadius: 30)
-                                    NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
+                                    BusStopCircle(stopLetter: busStop.stopIndicator, rawBearing: nil, circleRadius: FavouritesList.iconWidth)
+                                    NavigationLink(destination: JourneyBoard(station: item.station), label: {
+                                        VStack(alignment: .leading) {
+                                            Text(item.station.name)
+                                                .lineLimit(1)
+                                            if !busStop.towards.isEmpty {
+                                                Text("towards \(busStop.towards)")
+                                                    .font(.caption)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                    })
                                 }
                             }
                         }
                     }
                     if !metroModeStations.isEmpty {
                         Section("Stations") {
+                            let roundelAspectRatio = 1.2307
                             ForEach(metroModeStations.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
-                                NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
+                                HStack {
+                                    ImageLoader.getRoundel(mode: item.station.getMode())
+                                        .resizable()
+                                        .frame(width: FavouritesList.iconWidth, height: FavouritesList.iconWidth / roundelAspectRatio)
+                                    NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
+                                }
                             }
                         }
                     }
