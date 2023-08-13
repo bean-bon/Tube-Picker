@@ -26,11 +26,11 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
     let departureTime: TimetablingTime
     
     func getReadableStationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
     }
     
     func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName ?? "")
+        return BlacklistedStationTermStripper.sanitiseStationName(input: destinationName ?? "")
     }
     
     func getTimeToStationInSeconds() -> Int? {
@@ -91,11 +91,11 @@ struct DarwinScheduleData: TimetabledArrival, Equatable, Decodable {
     let departureTime: TimetablingTime
     
     func getReadableStationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
     }
     
     func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: destinationName)
     }
     
     func getPlatformDisplayName() -> String {

@@ -13,7 +13,7 @@ class LineStatusDataManager: ObservableObject {
     @Published var favourites = FavouritesInterface.lines
     
     @Published var statusData: [LineStatus] = []
-    @Published private var loadingData: Bool = false
+    @Published var loadingData: Bool = false
     private var lastUpdated: Date? = nil
     
     private var currentTask: Task<[LineStatus], any Error>?
@@ -43,27 +43,23 @@ class LineStatusDataManager: ObservableObject {
         return Set(statusData.filter { $0.statusDetails.first?.statusSeverity != 10 }.map { $0.id })
     }
     
-    func getStatusData() async -> [LineStatus] {
-        if needsLoad() {
+    func updateStatusData() async {
+        if needsLoad() && NetworkMonitor.shared.connected {
             do {
                 if currentTask == nil {
                     currentTask = statusDataLoadTask()
                 }
-                guard let taskValue = try await currentTask?.value else {
-                    return statusData
-                }
+                guard let taskValue = try await currentTask?.value else { return }
                 statusData = taskValue
-                return statusData
             } catch {
                 print("Error thrown retrieving line status: \(error)")
             }
         }
-        return statusData
     }
     
 }
 
-struct LineStatus: Decodable, Identifiable {
+struct LineStatus: Decodable, Identifiable, Equatable {
     
     let id: String
     let mode: StopPointMetaData.modeName
@@ -85,7 +81,7 @@ struct LineStatus: Decodable, Identifiable {
     
 }
 
-struct StatusDetails: Decodable {
+struct StatusDetails: Decodable, Equatable {
     
     let lineId: String?
     let statusSeverity: Int
@@ -96,7 +92,7 @@ struct StatusDetails: Decodable {
     
 }
 
-struct ValidityPeriod: Decodable {
+struct ValidityPeriod: Decodable, Equatable {
     
     let fromDate: Date
     let toDate: Date
@@ -118,7 +114,7 @@ struct ValidityPeriod: Decodable {
     
 }
 
-struct Disruption: Decodable {
+struct Disruption: Decodable, Equatable {
     
     let category: String?
     let description: String?

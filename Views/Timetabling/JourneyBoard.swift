@@ -10,6 +10,9 @@ import SwiftUI
 struct JourneyBoard: View {
         
     let station: any Station
+    var grouped: Bool {
+        return station.getMode() == .bus
+    }
     
     @EnvironmentObject var lineData: LineStatusDataManager
     
@@ -48,8 +51,27 @@ struct JourneyBoard: View {
                         Section(header: Text("Live Departures")) {
                             if !listArrivals.isEmpty {
                                 let sliceSize = listArrivals.count > 10 ? 10 : listArrivals.count
-                                ForEach(listArrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { departure in
-                                    ArrivalView(arrival: departure)
+                                if !grouped {
+                                    ForEach(listArrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { departure in
+                                        ArrivalView(arrival: departure)
+                                    }
+                                } else {
+                                    let groupedArrivals: Dictionary<String, [any PredictedArrival]> = Dictionary(
+                                        grouping: listArrivals,
+                                        by: { $0.lineId ?? "" + $0.getReadableDestinationName() })
+                                    ForEach(groupedArrivals.sorted(by: {
+                                        $0.key.count == $1.key.count
+                                        ? $0.key < $1.key
+                                        : $0.key.count < $1.key.count
+                                    }), id: \.key) { _, arrivals in
+                                        let mode = (arrivals.first! as? BusTubePrediction)?.modeName ?? .unknown
+                                        GroupedArrivalView(
+                                            destination: arrivals.first!.getReadableDestinationName(),
+                                            lineId: arrivals.first!.lineId ?? "",
+                                            mode: mode,
+                                            times: arrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! }).map { $0.getTimeDisplay() }
+                                        )
+                                    }
                                 }
                             } else {
                                 Text(loadingPredictions
@@ -100,7 +122,7 @@ struct JourneyBoard: View {
                 }
             }
             .sheet(isPresented: $showFilterSheet) {
-                let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + station.lines.sorted()
+                let linePickerOptions: [String] = [JourneyBoard.defaultLineFilter] + station.lines.sorted().map { $0.capitalized }
                 let destinationPickerOptions: [String] = [JourneyBoard.defaultDestinationFilter] + destinations.sorted()
                 VStack {
                     Text("Filters")
@@ -117,7 +139,7 @@ struct JourneyBoard: View {
                             updateFilteredTimetabling()
                         }
                         Picker ("Line", selection: $selectedLine) {
-                            ForEach(linePickerOptions.sorted(), id: \.self) { line in
+                            ForEach(linePickerOptions, id: \.self) { line in
                                 let lookup = Line.lookupName(lineID: line)
                                 Text(lookup.isEmpty ? line : lookup)
                             }
@@ -128,7 +150,8 @@ struct JourneyBoard: View {
                             updateDestinations()
                         }
                     }
-                    Text("Naptan: \((station as? SingleStation)?.naptanID ?? "n/a")")
+                    Text("Name: \(station.getReadableName())")
+                    Text("Naptan: \(station.getNaptanString())")
                     Button(action: { showFilterSheet = false }) {
                         Text("Apply Filters")
                             .fontWeight(.bold)
@@ -171,7 +194,7 @@ struct JourneyBoard: View {
     
     private func updateDestinations() {
         destinations = (filteredArrivals + filteredTimetabling).compactMap {
-            BlacklistedStationTermStripper.removeBlacklistedTerms(input: $0.getReadableDestinationName().capitalized)
+            BlacklistedStationTermStripper.sanitiseStationName(input: $0.getReadableDestinationName().capitalized)
         }.unique()
         destinations.removeAll(where: { station.name.contains($0.capitalized) })
     }

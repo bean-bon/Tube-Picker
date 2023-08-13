@@ -11,8 +11,10 @@ struct ContentView: View {
     
     @EnvironmentObject var stationData: StationData
     @EnvironmentObject var lineData: LineStatusDataManager
+    @EnvironmentObject private var locationManager: LocationManager
     @State var randomStation: Station = SingleStation.default
-    
+    @State var mapViewModel: MapViewModel = .init()
+
     var body: some View {
         TabView {
             FavouritesList()
@@ -22,6 +24,15 @@ struct ContentView: View {
                     Image(systemName: "star.fill")
                     Text("Favourites")
                 }
+            VStack {
+                MapView(mapViewModel: mapViewModel, locationManager: locationManager)
+                    .environmentObject(stationData)
+                    .environmentObject(lineData)
+            }
+            .tabItem {
+                Image(systemName: "map")
+                Text("Map")
+            }
             ModeListView()
                 .environmentObject(stationData)
                 .environmentObject(lineData)

@@ -33,11 +33,11 @@ struct ArrivalDeparture: PredictedArrival, Decodable {
     }
     
     func getReadableStationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)
+        return BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
     }
     
     func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName ?? "")
+        return BlacklistedStationTermStripper.sanitiseStationName(input: destinationName ?? "")
     }
     
     func getPlatformDisplayName() -> String {
@@ -93,12 +93,10 @@ struct ArrivalDeparture: PredictedArrival, Decodable {
 }
 
 /**
- Prediction type which can be used for all TfL modes excluding busses, however, a more specialised
+ Prediction type which can be used for all TfL modes, however, a more specialised
  version exists for the Elizabeth and Overground, so that should be favoured where applicable.
  */
-struct TubePrediction: PredictedArrival, Decodable {
-    
-    static let `default` = TubePrediction(id: "0", naptanId: "940something", operationType: 0, stationName: "Charing Cross", lineId: "northern", platformName: "4", destinationName: "High Barnet", timeToStation: 35, modeName: "tube")
+struct BusTubePrediction: PredictedArrival, Decodable {
     
     let id: String
     let naptanId: String
@@ -108,18 +106,47 @@ struct TubePrediction: PredictedArrival, Decodable {
     let platformName: String
     let destinationName: String?
     let timeToStation: Int
-    let modeName: String
+    let modeName: StopPointMetaData.modeName
+    
+    enum CodingKeys: CodingKey {
+        case id
+        case naptanId
+        case operationType
+        case stationName
+        case lineId
+        case platformName
+        case destinationName
+        case timeToStation
+        case modeName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.naptanId = try container.decode(String.self, forKey: .naptanId)
+        self.operationType = try container.decode(Int.self, forKey: .operationType)
+        self.stationName = try container.decode(String.self, forKey: .stationName)
+        self.lineId = try container.decodeIfPresent(String.self, forKey: .lineId)
+        self.platformName = try container.decode(String.self, forKey: .platformName)
+        self.destinationName = try container.decodeIfPresent(String.self, forKey: .destinationName)
+        self.timeToStation = try container.decode(Int.self, forKey: .timeToStation)
+        self.modeName = StopPointMetaData.modeName.init(rawValue: try container.decode(String.self, forKey: .modeName)) ?? .unknown
+    }
     
     func getNaptan() -> String? {
         return naptanId
     }
     
     func getReadableStationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: stationName)
+        return modeName == .bus
+        ? BlacklistedStationTermStripper.sanitiseBusStopName(input: stationName)
+        : BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
     }
     
     func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.removeBlacklistedTerms(input: destinationName ?? "")
+        return modeName == .bus
+        ? BlacklistedStationTermStripper.sanitiseBusStopName(input: destinationName ?? "")
+        : BlacklistedStationTermStripper.sanitiseStationName(input: destinationName ?? "")
     }
     
     func getTimeToStationInSeconds() -> Int? {
@@ -155,7 +182,7 @@ struct TubePrediction: PredictedArrival, Decodable {
         hasher.combine(lineId)
     }
     
-    static func ==(lhs: TubePrediction, rhs: TubePrediction) -> Bool {
+    static func ==(lhs: BusTubePrediction, rhs: BusTubePrediction) -> Bool {
         return lhs.timeToStation == rhs.timeToStation
         && lhs.destinationName == rhs.destinationName
         && lhs.lineId == rhs.lineId

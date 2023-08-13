@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import MapKit
 
 /**
  Initialise the station data based on which stations currently have departures.
@@ -17,11 +18,13 @@ import SwiftUI
 final class StationData: ObservableObject {
         
     @Published var allStations: [SingleStation] = []
+    @Published var mergedStations: [any Station] = []
     // Second dictionary groups by NaptanID.
     @Published var groupedStations: [StopPointMetaData.modeName: [String: SingleStation]] = Dictionary()
     @Published private var loadingState: AsyncLoadingState = .empty
     
     private var stopPointCache: Array<StopPoint> = Array()
+    private var coordinateCache: [String: CLLocationCoordinate2D] = .init()
     
     func loadData() async {
         if !needsLoad() {
@@ -36,6 +39,10 @@ final class StationData: ObservableObject {
         return loadingState
     }
     
+    func lookupCoordinates(naptanId: String) -> CLLocationCoordinate2D? {
+        return coordinateCache[naptanId]
+    }
+    
     func stationGroupKeys() -> [StopPointMetaData.modeName] {
         return Array(groupedStations.keys)
     }
@@ -48,9 +55,14 @@ final class StationData: ObservableObject {
     private func parseStationStopPoints() {
         stopPointCache.forEach { stopPoint in
             stopPoint.modes.forEach { mode in
+                let coordinates = CLLocationCoordinate2D(
+                    latitude: CLLocationDegrees(floatLiteral: stopPoint.lat),
+                    longitude: CLLocationDegrees(floatLiteral: stopPoint.lon)
+                )
                 if StopPointMetaData.stationModesNames.contains(mode) {
-                    allStations.append(SingleStation(name: BlacklistedStationTermStripper.removeBlacklistedTerms(input: stopPoint.commonName), lines: Set(stopPoint.lines.filter { !$0.id.contains(where: { $0.isNumber }) }.map { $0.id }), mode: mode, naptanID: stopPoint.stationNaptan))
+                    allStations.append(SingleStation(name: BlacklistedStationTermStripper.sanitiseStationName(input: stopPoint.commonName), lines: Set(stopPoint.lines.filter { Line.lineMap.keys.contains($0.id) }.map { $0.id }), mode: mode, naptanID: stopPoint.naptanId, lat: coordinates.latitude, lon: coordinates.longitude))
                 }
+                coordinateCache[stopPoint.naptanId] = coordinates
             }
         }
     }
@@ -63,6 +75,15 @@ final class StationData: ObservableObject {
                 groupedStations[mode] = Dictionary()
             }
             groupedStations[mode]![station.naptanID] = station
+        }
+        mergedStations = Dictionary(grouping: allStations, by: { $0.name.replacingOccurrences(of: "'", with: "") }).map {
+            if $0.value.count != 1 {
+                let comboStation = CombinationNaptanStation(name: $0.value.first!.name, singleStations: $0.value)
+                coordinateCache[comboStation.getNaptanString()] = CLLocationCoordinate2D(latitude: comboStation.lat, longitude: comboStation.lon)
+                return comboStation
+            } else {
+                return $0.value.first!
+            }
         }
     }
     
@@ -127,19 +148,6 @@ final class StationData: ObservableObject {
     
     private func needsLoad() -> Bool {
         return allStations.isEmpty
-    }
-    
-    private func parseStopPoints(data: [StopPoint]) -> [StopPointMetaData.modeName: Set<StopPoint>] {
-        var stopPointsByModeName: [StopPointMetaData.modeName: Set<StopPoint>] = Dictionary()
-        for stopPoint in data {
-            stopPoint.modes.forEach { mode in
-                if ![StopPointMetaData.modeName.bus, StopPointMetaData.modeName.unknown].contains(mode) {
-                    print("\(stopPoint.commonName), \(mode)")
-                    stopPointsByModeName[mode]?.formUnion([stopPoint])
-                }
-            }
-        }
-        return stopPointsByModeName
     }
     
 }
