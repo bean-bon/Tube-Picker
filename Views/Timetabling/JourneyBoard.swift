@@ -59,15 +59,16 @@ struct JourneyBoard: View {
                                     let groupedArrivals: Dictionary<String, [any PredictedArrival]> = Dictionary(
                                         grouping: listArrivals,
                                         by: { $0.lineId ?? "" + $0.getReadableDestinationName() })
-                                    ForEach(groupedArrivals.sorted(by: {
+                                    let listedGroups = groupedArrivals.sorted(by: {
                                         $0.key.count == $1.key.count
                                         ? $0.key < $1.key
                                         : $0.key.count < $1.key.count
-                                    }), id: \.key) { _, arrivals in
-                                        let mode = (arrivals.first! as? BusTubePrediction)?.modeName ?? .unknown
+                                    })
+                                    ForEach(listedGroups, id: \.key) { lineId, arrivals in
+                                        let mode = Line.lineMap.keys.contains(lineId) ? Line.lineMap[lineId]!.mode : .bus
                                         GroupedArrivalView(
-                                            destination: arrivals.first!.getReadableDestinationName(),
-                                            lineId: arrivals.first!.lineId ?? "",
+                                            destination: arrivals.first?.getReadableDestinationName() ?? "Unknown",
+                                            lineId: lineId,
                                             mode: mode,
                                             times: arrivals.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! }).map { $0.getTimeDisplay() }
                                         )
@@ -83,9 +84,20 @@ struct JourneyBoard: View {
                         if station.needsTimetabling(arrivals: arrivals) {
                             Section(header: Text("Timetable")) {
                                 if !listTimetabling.isEmpty {
-                                    let sliceSize = listTimetabling.count > 10 ? 10 : listTimetabling.count
-                                    ForEach(listTimetabling.sorted(by: { $0.getTimeToStationInSeconds()! < $1.getTimeToStationInSeconds()! })[..<sliceSize], id: \.hashValue) { arrival in
-                                        ArrivalView(arrival: arrival)
+                                    let groupedTimetabling: Dictionary<String, [any TimetabledArrival]> = Dictionary(
+                                        grouping: listTimetabling,
+                                        by: { $0.lineId ?? "" + $0.getReadableDestinationName() })
+                                    let listedGroups = groupedTimetabling.sorted(by: {
+                                        $0.key.count == $1.key.count
+                                        ? $0.key < $1.key
+                                        : $0.key.count < $1.key.count
+                                    })
+                                    ForEach(listedGroups, id: \.key) { line, arrivals in
+                                        GroupedArrivalView(
+                                            destination: arrivals.first?.getReadableDestinationName() ?? "Check Board",
+                                            lineId: line,
+                                            mode: arrivals.first?.getMode() ?? .unknown,
+                                            times: arrivals.map { $0.getTimeDisplay() }.sorted())
                                     }
                                 } else {
                                     Text(loadingTimetable || loadingPredictions // Timetable data loads after predictions.
@@ -138,16 +150,18 @@ struct JourneyBoard: View {
                             updateFilteredArrivals()
                             updateFilteredTimetabling()
                         }
-                        Picker ("Line", selection: $selectedLine) {
-                            ForEach(linePickerOptions, id: \.self) { line in
-                                let lookup = Line.lookupName(lineID: line)
-                                Text(lookup.isEmpty ? line : lookup)
+                        if station.getMode() != .bus {
+                            Picker ("Line", selection: $selectedLine) {
+                                ForEach(linePickerOptions, id: \.self) { line in
+                                    let lookup = Line.lookupName(lineID: line)
+                                    Text(lookup.isNullOrEmpty() ? line : lookup!)
+                                }
+                            }.onChange(of: selectedLine) { _ in
+                                selectedDestination = JourneyBoard.defaultDestinationFilter
+                                updateFilteredArrivals()
+                                updateFilteredTimetabling()
+                                updateDestinations()
                             }
-                        }.onChange(of: selectedLine) { _ in
-                            selectedDestination = JourneyBoard.defaultDestinationFilter
-                            updateFilteredArrivals()
-                            updateFilteredTimetabling()
-                            updateDestinations()
                         }
                     }
                     Text("Name: \(station.getReadableName())")

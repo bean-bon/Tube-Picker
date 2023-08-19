@@ -119,7 +119,8 @@ struct TimetablingTime: Equatable, Hashable, Comparable, Decodable {
     func getFormattedTimeString() -> String {
         guard self.isValidTime()
         else { return "" }
-        let formattedHour = hour! < 10 ? "0\(hour!)" : String(hour!)
+        let rawHour = hour! > 23 ? hour! - 24 : hour!
+        let formattedHour = rawHour < 10 ? "0\(rawHour)" : String(rawHour)
         let formattedMinute = minute! < 10 ? "0\(minute!)" : String(minute!)
         return "\(formattedHour):\(formattedMinute)"
     }

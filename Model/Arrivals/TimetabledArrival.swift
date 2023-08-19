@@ -21,7 +21,7 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
     static let `default` = TflTimetabledArrival(stationName: "Charing Cross", destinationName: "Edgeware", lineId: "northern", departureTime: TimetablingTime(hour: "13", minute: "12"))
     
     let stationName: String
-    let destinationName: String?
+    var destinationName: String?
     var lineId: String?
     let departureTime: TimetablingTime
     
@@ -31,6 +31,12 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
     
     func getReadableDestinationName() -> String {
         return BlacklistedStationTermStripper.sanitiseStationName(input: destinationName ?? "")
+    }
+    
+    func getMode() -> StopPointMetaData.modeName {
+        return lineId == nil
+        ? .unknown
+        : Line.lineMap[lineId ?? ""]?.mode ?? .bus
     }
     
     func getTimeToStationInSeconds() -> Int? {
@@ -71,70 +77,6 @@ struct TflTimetabledArrival: TimetabledArrival, Equatable {
         && lhs.departureTime == rhs.departureTime
         && lhs.destinationName == rhs.destinationName
         && lhs.lineId == rhs.lineId
-    }
-    
-}
-
-/**
- Timetable data derived from the Darwin Timetable API; the lines available from
- my API are: "elizabeth" and "overground". There is more work to be done on the server side,
- as associated trains are not currently supported: there may be seemingly conflicting services such as
- 14:49 Stratford (Platform 1) and 14:50 Stratford (Platform 1); for now some are removed by placing a 2
- minute check when looking for equality.
- */
-struct DarwinScheduleData: TimetabledArrival, Equatable, Decodable {
-
-    let stationName: String
-    let destinationName: String
-    var lineId: String?
-    let platform: String
-    let departureTime: TimetablingTime
-    
-    func getReadableStationName() -> String {
-        return BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
-    }
-    
-    func getReadableDestinationName() -> String {
-        return BlacklistedStationTermStripper.sanitiseStationName(input: destinationName)
-    }
-    
-    func getPlatformDisplayName() -> String {
-        if platform.isEmpty || platform.contains("URL") {
-            return ""
-        }
-        return "Platform \(platform)"
-    }
-    
-    func getTimeToStationInSeconds() -> Int? {
-        return Date().timetablingTime().secondsUntil(other: departureTime)
-    }
-    
-    func isArrivalTimeValid() -> Bool {
-        return departureTime.hasTimePassed() == false
-    }
-    
-    func isTimeUntilThisLessThan(seconds: UInt) -> Bool {
-        guard let timeToStation = getTimeToStationInSeconds()
-        else { return false }
-        return timeToStation < seconds
-    }
-    
-    func getTimeDisplay() -> String {
-        return departureTime.getFormattedTimeString()
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(departureTime)
-        hasher.combine(destinationName)
-        hasher.combine(platform)
-    }
-    
-    static func ==(lhs: DarwinScheduleData, rhs: DarwinScheduleData) -> Bool {
-        guard lhs.isArrivalTimeValid() && rhs.isArrivalTimeValid(),
-              lhs.destinationName == rhs.destinationName,
-              lhs.lineId == rhs.lineId
-        else { return false }
-        return abs(lhs.getTimeToStationInSeconds()! - rhs.getTimeToStationInSeconds()!) <= 120
     }
     
 }

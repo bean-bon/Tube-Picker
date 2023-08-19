@@ -15,6 +15,7 @@ protocol GenericArrival: Equatable, Hashable {
     
     func getReadableStationName() -> String
     func getReadableDestinationName() -> String
+    func getMode() -> StopPointMetaData.modeName
     func getPlatformDisplayName() -> String
     
     func getTimeToStationInSeconds() -> Int?

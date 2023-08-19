@@ -9,6 +9,8 @@ import SwiftUI
 
 struct ImageLoader {
     
+    static let roundelAspectRatio = 1.2307
+
     enum roundel: String, Comparable {
         
         case DLRRoundel

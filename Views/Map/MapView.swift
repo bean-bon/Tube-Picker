@@ -96,22 +96,20 @@ struct MapView: View {
                                             circleRadius: 30
                                         )
                                     } else {
-                                        Circle()
-                                            .foregroundStyle(StopPointMetaData.lookupModeColour(marker.station.getMode()))
-                                            .frame(width: 30, height: 30)
-                                        if checkSpan(delta: 0.05) {
-                                            let outlineStrokeColour: Color = scheme == .dark ? .black : .white
-                                            Text(marker.station.name)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(scheme == .dark ? .white : .black)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                                .shadow(color: outlineStrokeColour, radius: 1)
-                                        }
+                                        ImageLoader.getRoundel(mode: marker.station.getMode())
+                                            .resizable()
+                                            .frame(width: 25 * ImageLoader.roundelAspectRatio, height: 25)
+                                        let outlineStrokeColour: Color = scheme == .dark ? .black : .white
+                                        Text(marker.station.name)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(scheme == .dark ? .white : .black)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
+                                            .shadow(color: outlineStrokeColour, radius: 1)
                                     }
                                 }
                             }
@@ -153,7 +151,9 @@ struct MapView: View {
                             hasLoadedPreviously = true
                         }
                     }
-                    MapCentreIndicator()
+                    Circle()
+                        .frame(width: 10, height: 10)
+                        .foregroundStyle(.orange)
                 }
             }
         }.environmentObject(stationData)

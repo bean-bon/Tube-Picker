@@ -19,19 +19,18 @@ struct ArrivalView: View {
         
         HStack {
             VStack(alignment: .leading) {
-                let tryTubeArrivalCast = arrival as? BusTubePrediction
                 HStack {
                     LineArrivalRepresentativeMarker(lineId: arrival.lineId ?? "",
-                                                    mode: tryTubeArrivalCast?.modeName ?? .unknown)
+                                                    mode: arrival.getMode())
                     Text(arrival.getReadableDestinationName().capitalized)
                         .font(.headline)
                         .fixedSize()
                 }
                 HStack {
-                    if tryTubeArrivalCast?.modeName != .bus {
+                    if arrival.getMode() != .bus {
                         let platformDisplay = arrival.getPlatformDisplayName()
                         let initialDisplay = platformDisplay.isEmpty ? "" : "\(platformDisplay): "
-                        let fullLineName = Line.lookupName(lineID: arrival.lineId)
+                        let fullLineName = Line.lookupName(lineID: arrival.lineId) ?? ""
                         // 26 characters was found as a good length for using the compact name.
                         Text("\(initialDisplay)\(fullLineName)".count > 26 ? "\(initialDisplay)\(Line.lookupCompactName(lineID: arrival.lineId))" : "\(initialDisplay)\(fullLineName)")
                             .font(.caption)

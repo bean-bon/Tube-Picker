@@ -34,9 +34,9 @@ struct FavouritesList: View {
                         Section("Bus Stops") {
                             ForEach(favouriteBusStops.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
                                 let busStop = item.station as! BusStop
-                                HStack {
-                                    BusStopCircle(stopLetter: busStop.stopIndicator, rawBearing: nil, circleRadius: FavouritesList.iconWidth)
-                                    NavigationLink(destination: JourneyBoard(station: item.station), label: {
+                                NavigationLink(destination: JourneyBoard(station: item.station), label: {
+                                    HStack {
+                                        BusStopCircle(stopLetter: busStop.stopIndicator, rawBearing: nil, circleRadius: FavouritesList.iconWidth)
                                         VStack(alignment: .leading) {
                                             Text(item.station.name)
                                                 .lineLimit(1)
@@ -46,6 +46,8 @@ struct FavouritesList: View {
                                                     .lineLimit(1)
                                             }
                                         }
+                                    }
+                                })
                                     })
                                 }
                             }
@@ -58,7 +60,7 @@ struct FavouritesList: View {
                                 HStack {
                                     ImageLoader.getRoundel(mode: item.station.getMode())
                                         .resizable()
-                                        .frame(width: FavouritesList.iconWidth, height: FavouritesList.iconWidth / roundelAspectRatio)
+                                        .frame(width: FavouritesList.iconWidth, height: FavouritesList.iconWidth / ImageLoader.roundelAspectRatio)
                                     NavigationLink(item.station.name, destination: JourneyBoard(station: item.station))
                                 }
                             }

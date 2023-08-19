@@ -16,7 +16,7 @@ class BlacklistedStationTermStripper {
 
     static func sanitiseStationName(input: String) -> String {
         let exceptions = ["Check Station Board", "London Bridge", "London Fields", "London City Airport", "Battersea Power Station", "Nine Elms", "Bromley-by-Bow"]
-        let blacklistedTerms: [String] = ["ELL", "(London)", "London", "Crossrail", "Underground", "Rail", "DLR", "Station", "(H&C Line)-Underground", "El", "Nll", "(Berks)", "(H&C Line)", "(for ExCel)", "-"]
+        let blacklistedTerms: [String] = ["ELL", "(London)", "London", "Crossrail", "Underground", "Rail", "DLR", "Station", "(H&C Line)-Underground", " El", "Nll", "(Berks)", "(H&C Line)", "(for ExCel)", "-"]
         return sanitise(input: input, blacklisted: blacklistedTerms, exceptions: exceptions, noneFound: noStationFound)
     }
     

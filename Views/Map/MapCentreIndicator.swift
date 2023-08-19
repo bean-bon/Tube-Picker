@@ -13,7 +13,7 @@ struct MapCentreIndicator: View {
             ForEach(0...4, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 5)
                     .foregroundStyle(.orange)
-                    .frame(width: 5, height: 10)
+                    .frame(width: 5, height: 40)
                     .rotationEffect(Angle(degrees: 360 / Double(i)))
             }
         }
