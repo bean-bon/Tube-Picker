@@ -13,7 +13,7 @@ import Foundation
 struct TimetabledStop: Codable {
     
     let routeId: Int?
-    let stationId: String // NaptanID.
+    let id: String // NaptanID.
     let direction: String?
     let towards: String?
     let name: String

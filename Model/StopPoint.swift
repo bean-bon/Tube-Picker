@@ -97,6 +97,7 @@ class StopPointMetaData {
         case dlr
         case elizabeth
         case overground
+        case overgroundElizabeth
         case bus
         case unknown
     }
@@ -108,6 +109,7 @@ class StopPointMetaData {
         case .dlr: return "dlr"
         case .elizabeth: return "elizabeth-line"
         case .overground: return "overground"
+        case .overgroundElizabeth: return "overground,elizabeth-line"
         case .bus: return "bus"
         case .unknown: return "unknown"
         }
@@ -120,15 +122,16 @@ class StopPointMetaData {
         case .dlr: return "Docklands Light Railway"
         case .elizabeth: return "Elizabeth line"
         case .overground: return "London Overground"
+        case .overgroundElizabeth: return "Elizabeth line/London Overground"
         case .bus: return "Bus"
         case .unknown: return "unknown"
         }
     }
     
-    static func lookupModeColour(_ mode: modeName) -> Color {
+    static func lookupModeColour(_ mode: modeName, night: Bool = false) -> Color {
         switch mode {
         case .allMetro: return .white
-        case .bus: return Color(red: 225/255, green: 37/255, blue: 27/255)
+        case .bus: return night ? Color(red: 26/255, green: 26/255, blue: 54/255) : Color(red: 225/255, green: 37/255, blue: 27/255)
         case .tube: return Color(red: 0/256, green: 9/256, blue: 171/256)
         case .dlr: return Line.lookupColour(lineID: "dlr")
         case .elizabeth: return Line.lookupColour(lineID: "elizabeth")

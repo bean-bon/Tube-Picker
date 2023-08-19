@@ -30,7 +30,7 @@ struct LineStatusList: View {
         let statusRows = filteredLines.map { line in
             LineStatusRow(
                 id: line.id,
-                name: Line.lookupName(lineID: line.id),
+                name: Line.lookupName(lineID: line.id) ?? "",
                 colour: Line.lookupColour(lineID: line.id, darkMode: scheme == .dark),
                 showFavouriteButton: showFavouriteButtons
             )

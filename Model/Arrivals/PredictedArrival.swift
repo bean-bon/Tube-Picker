@@ -32,6 +32,10 @@ struct ArrivalDeparture: PredictedArrival, Decodable {
         return naptanID
     }
     
+    func getMode() -> StopPointMetaData.modeName {
+        return .overgroundElizabeth
+    }
+    
     func getReadableStationName() -> String {
         return BlacklistedStationTermStripper.sanitiseStationName(input: stationName)
     }
@@ -135,6 +139,10 @@ struct BusTubePrediction: PredictedArrival, Decodable {
     
     func getNaptan() -> String? {
         return naptanId
+    }
+    
+    func getMode() -> StopPointMetaData.modeName {
+        return modeName
     }
     
     func getReadableStationName() -> String {

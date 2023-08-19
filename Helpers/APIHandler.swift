@@ -106,14 +106,20 @@ class APIHandler {
     }
     
     /**
+     Given a StopPoint, return the routes served.
+     */
+    func busStopRoute(stopID: String) async -> [BusStopRoute] {
+        let url = tflRelayURL("StopPoint/\(stopID)/Route")
+        return await lookupAndDecodeJson(url: url, decodeErrorMessage: "Could not parse line route for id: \(stopID)") ?? []
+    }
+    
+    /**
      Given a station NaptanID and its corresponding line, return the appropriate timetable.
      Note: this method will only work for DLR and the underground.
      */
-    func tubeDlrTimetables(lineName: String, fromNaptan: String) async -> TwoWayTimetableResponse? {
-        guard let lineID = Line.lookupLineID(searchString: lineName)
-        else { return nil }
-        let inboundUrl = tflRelayURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=inbound")
-        let outboundUrl = tflRelayURL("Line/\(lineID)/Timetable/\(fromNaptan)?direction=outbound")
+    func tubeDlrTimetables(lineId: String, fromNaptan: String) async -> TwoWayTimetableResponse {
+        let inboundUrl = tflRelayURL("Line/\(lineId)/Timetable/\(fromNaptan)?direction=inbound")
+        let outboundUrl = tflRelayURL("Line/\(lineId)/Timetable/\(fromNaptan)?direction=outbound")
         return TwoWayTimetableResponse(inbound: await lookupAndDecodeJson(url: inboundUrl, decodeErrorMessage: "Could not lookup/decode inbound timetable data"),
                                        outbound: await lookupAndDecodeJson(url: outboundUrl, decodeErrorMessage: "Could not lookup/decode outbound timetable data"))
     }

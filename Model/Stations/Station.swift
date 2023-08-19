@@ -95,8 +95,7 @@ struct CombinationNaptanStation: Station {
         var timetableInfo = [TflTimetabledArrival]()
         for (line, naptans) in linesToNaptans {
             for naptan in naptans {
-                guard let response: TwoWayTimetableResponse = await APIHandler.shared.tubeDlrTimetables(lineName: line, fromNaptan: naptan)
-                else { continue }
+                let response: TwoWayTimetableResponse = await APIHandler.shared.tubeDlrTimetables(lineId: line, fromNaptan: naptan)
                 let timetabledArrivals = (response.inbound?.getTimetabledArrivals(originStation: name, lineName: line) ?? [])
                 + (response.outbound?.getTimetabledArrivals(originStation: name, lineName: line) ?? [])
                 timetableInfo.append(contentsOf: timetabledArrivals.filter { $0.isArrivalTimeValid() })
@@ -211,8 +210,7 @@ struct SingleStation: Station, Hashable, Comparable {
             var timetableInfo = [TflTimetabledArrival]()
             let terminatingLines = getTimetablingLines(arrivals: arrivals)
             for line in terminatingLines {
-                guard let response: TwoWayTimetableResponse = await APIHandler.shared.tubeDlrTimetables(lineName: line, fromNaptan: naptanID)
-                else { continue }
+                let response: TwoWayTimetableResponse = await APIHandler.shared.tubeDlrTimetables(lineId: line, fromNaptan: naptanID)
                 let timetabledArrivals = (response.inbound?.getTimetabledArrivals(originStation: name, lineName: line) ?? [])
                 + (response.outbound?.getTimetabledArrivals(originStation: name, lineName: line) ?? [])
                 timetableInfo.append(contentsOf: timetabledArrivals.filter { $0.isArrivalTimeValid() })
@@ -345,11 +343,33 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
     }
     
     func pullTimetabling(arrivals: [any PredictedArrival]) async -> [any TimetabledArrival] {
-        return []
+        let timetablingLines = lines.subtracting(Set(arrivals.compactMap { $0.lineId }))
+        let responseActor = TimetablingActor()
+        await withThrowingTaskGroup(of: Void.self) { group in
+            for line in timetablingLines {
+                group.addTask(operation: {
+                    let response = await APIHandler.shared.tubeDlrTimetables(lineId: line, fromNaptan: self.naptanId)
+                    await responseActor.addResponse(line, response)
+                })
+            }
+        }
+        let arrivals = Array(await responseActor.responses.map { line, response in
+            response.inbound?.getTimetabledArrivals(originStation: naptanId, lineName: line) ?? []
+            + (response.outbound?.getTimetabledArrivals(originStation: naptanId, lineName: line) ?? [])
+        }.joined())
+        let routeLookup = await APIHandler.shared.busStopRoute(stopID: naptanId)
+        return arrivals.map { a in
+            TflTimetabledArrival(
+                stationName: a.stationName,
+                destinationName: routeLookup.first(where: { $0.lineId == a.lineId })?.vehicleDestinationText,
+                lineId: a.lineId,
+                departureTime: a.departureTime)
+        }
     }
     
     func needsTimetabling(arrivals: [any PredictedArrival]) -> Bool {
-        return false
+        let linesFound = Set(arrivals.compactMap { $0.lineId })
+        return lines.subtracting(linesFound).count != 0
     }
     
     func isFavourite() -> Bool? {
@@ -365,4 +385,13 @@ struct BusStop: Station, Hashable, Comparable, CustomStringConvertible {
     }
     
     
+}
+
+actor TimetablingActor {
+    var responses = [String: TwoWayTimetableResponse]()
+    func addResponse(_ lineId: String, _ response: TwoWayTimetableResponse?) {
+        guard let nonNil = response
+        else { return }
+        responses[lineId] = nonNil
+    }
 }
