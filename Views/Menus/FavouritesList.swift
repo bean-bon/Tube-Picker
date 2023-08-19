@@ -48,11 +48,14 @@ struct FavouritesList: View {
                                         }
                                     }
                                 })
+                                    })
+                                }
                             }
                         }
                     }
                     if !metroModeStations.isEmpty {
                         Section("Stations") {
+                            let roundelAspectRatio = 1.2307
                             ForEach(metroModeStations.sorted(by: { $0.station.name < $1.station.name }), id: \.self) { item in
                                 HStack {
                                     ImageLoader.getRoundel(mode: item.station.getMode())
